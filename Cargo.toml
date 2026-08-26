@@ -11,9 +11,9 @@ rustyrosetta = { git = "https://github.com/nv0skar/RustyRosetta.git", tag = "rus
     "all",
 ] }
 
-waveless_commons = { git = "https://github.com/nv0skar/Waveless.git" }
-waveless_compiler = { git = "https://github.com/nv0skar/Waveless.git" }
-waveless_executor = { git = "https://github.com/nv0skar/Waveless.git" }
+waveless_commons = { git = "https://github.com/nv0skar/Waveless.git", tag = "0.1.0" }
+waveless_compiler = { git = "https://github.com/nv0skar/Waveless.git", tag = "0.1.0" }
+waveless_executor = { git = "https://github.com/nv0skar/Waveless.git", tag = "0.1.0" }
 
 tokio = { version = "1.48", features = ["full", "tracing"] }
 
