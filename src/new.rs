@@ -5,6 +5,8 @@ use crate::*;
 
 use databases::*;
 
+use waveless_sql::databases::mysql::*;
+
 #[allow(warnings)]
 use sea_orm::QueryResult;
 use waveless_commons::project::AnyDatabaseConnectionConfig;
@@ -18,19 +20,18 @@ pub struct NewMigrations;
 pub async fn run_migrations(internal_db_name: Option<CompactString>) -> Result<()> {
     let db_conns = DATABASES_CONNS.get().unwrap().to_owned();
 
-    let _main_db_conn = db_conns
-        .search(None)?
-        .into_arc_any()
-        .downcast::<mysql::MySQLConnection>()
-        .unwrap();
+    let (_, _main_db_any_conn) = db_conns.primary_db()?;
 
     let db_conn = match internal_db_name {
         Some(_) => db_conns
-            .search(Some("internal".into()))?
+            .search(&"internal".into())?
             .into_arc_any()
-            .downcast::<mysql::MySQLConnection>()
+            .downcast::<MySQLConnection>()
             .unwrap(),
-        None => _main_db_conn,
+        None => _main_db_any_conn
+            .into_arc_any()
+            .downcast::<MySQLConnection>()
+            .unwrap(),
     };
 
     let internal_script =
@@ -63,7 +64,7 @@ pub async fn run_migrations(internal_db_name: Option<CompactString>) -> Result<(
 
 // Creates internal database.
 pub async fn create_internal_db(
-    db_conn_config: &mysql::MySQLDBConnectionConfig,
+    db_conn_config: &MySQLDbConnectionConfig,
     internal_db_name: Option<CompactString>,
 ) -> Result<()> {
     let internal_db_name = internal_db_name.unwrap_or("silence".into());
@@ -72,7 +73,7 @@ pub async fn create_internal_db(
 
     let db_conn = any_db_conn
         .into_arc_any()
-        .downcast::<mysql::MySQLConnection>()
+        .downcast::<MySQLConnection>()
         .unwrap();
 
     debug!("Creating internal database `{}`.", internal_db_name);
@@ -102,26 +103,24 @@ pub async fn new_project(
     // Execute database's migrations if database data is given.
     if let (Some(db_name), Some(db_user), Some(db_password)) = (db_name, db_user, db_password) {
         *config.databases_conn_mut() = config::DatabasesConnectionConfig::new(
-            mysql::MySQLDBConnectionConfig::new(
+            MySQLDbConnectionConfig::new(
                 db_host.unwrap_or(SocketAddr::new("127.0.0.1".parse().unwrap(), 3306)),
                 db_user.to_owned(),
                 db_password.to_owned(),
                 db_name.to_owned(),
             ),
             match &internal_db_name {
-                Some(internal_db_name) if !skip_internal_db => {
-                    Some(mysql::MySQLDBConnectionConfig::new(
-                        db_host.unwrap_or(SocketAddr::new("127.0.0.1".parse().unwrap(), 3306)),
-                        db_user,
-                        db_password,
-                        internal_db_name.to_owned(),
-                    ))
-                }
+                Some(internal_db_name) if !skip_internal_db => Some(MySQLDbConnectionConfig::new(
+                    db_host.unwrap_or(SocketAddr::new("127.0.0.1".parse().unwrap(), 3306)),
+                    db_user,
+                    db_password,
+                    internal_db_name.to_owned(),
+                )),
                 _ => None,
             },
         );
 
-        DatabasesConnections::load(config.into_database_config()).await?;
+        DatabasesManager::load(config.into_database_config()).await?;
 
         run_migrations(internal_db_name).await?;
     }
@@ -131,14 +130,13 @@ pub async fn new_project(
 
     // Check whether a folder with the project's name already exists.
     if try_exists(&project_path).await? {
-        return Err(anyhow!("A folder with the project's name already exists."));
+        return Err(eyre!("A folder with the project's name already exists."));
     }
 
     if let Err(err) = create_dir(&project_path).await {
-        Err(anyhow!(
-            "Cannot create project's folder {}. Are you sure that there is no project with the same name and that you have write permissions?%{}",
+        Err(err).wrap_err(format!(
+            "Cannot create project's folder {}. Are you sure that there is no project with the same name and that you have write permissions?",
             name,
-            err.to_string()
         ))?;
     }
 

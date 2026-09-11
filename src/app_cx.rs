@@ -24,7 +24,11 @@ use crate::*;
 
 use config::*;
 
-use waveless_compiler::{COMPILER_CX, CompilerCx, discovery::*};
+use project::EndpointGeneratorConfig;
+
+use waveless_compiler::{COMPILER_CX, CompilerCx, generator::*};
+
+use waveless_sql::generator::mysql::*;
 
 pub type ManyByFile<T> = CheapVec<(Option<PathBuf>, CheapVec<T>)>;
 
@@ -42,7 +46,7 @@ impl AppCx {
     pub fn acquire() -> &'static Self {
         APP_CX
             .get()
-            .ok_or(anyhow!("App's context should have been initialized."))
+            .ok_or(eyre!("App's context should have been initialized."))
             .unwrap()
     }
 
@@ -95,10 +99,7 @@ impl AppCx {
         let config = match read(workspace_root.join("config.json")).await {
             Ok(file_buffer) => match serde_json::from_slice::<Config>(&file_buffer) {
                 Ok(config) => config,
-                Err(err) => bail!(
-                    "Cannot deserialize the `config.json` file.%{}",
-                    err.to_string()
-                ),
+                Err(err) => Err(err).wrap_err("Cannot deserialize the `config.json` file.")?,
             },
             Err(_) => {
                 warn!("Cannot find the `config.json` file.");
@@ -166,7 +167,20 @@ impl AppCx {
             CompilerCx::new(
                 waveless_commons::project::Project::new(
                     dummy_build.config().to_owned(),
-                    waveless_commons::project::Compiler::new("".to_compact_string(), None, None),
+                    waveless_commons::project::Compiler::new(
+                        CompactString::const_new(""),
+                        CheapVec::from_iter([EndpointGeneratorConfig::new(
+                            Arc::new(MySQLSchemaDiscovery::new(
+                                "main".into(),
+                                self.config()
+                                    .read()
+                                    .await
+                                    .skip_discovery_tables()
+                                    .to_owned(),
+                            )),
+                            false,
+                        )]),
+                    ),
                     dummy_build.executor().to_owned(),
                 ),
                 PathBuf::new(),
@@ -197,13 +211,12 @@ impl AppCx {
         let skip_endpoint_ids = config_guard.skip_endpoints_ids();
 
         endpoints.merge(
-            discover()
+            GeneratedEndpoints::generate()
                 .await?
-                .0
+                .get()
                 .iter()
-                .filter(|(name, _)| name == "main".to_compact_string())
                 .cloned()
-                .map(|(_, discovered_endpoints)| {
+                .map(|(_, (discovered_endpoints, _))| {
                     Endpoints::new_unchecked(
                         discovered_endpoints
                             .inner()
@@ -288,13 +301,13 @@ impl AppCx {
                 .endpoints()
                 .inner()
                 .iter()
-                .filter(|endpoint| match endpoint.target() {
-                    Targets::HttpTarget(http_target) => *http_target.auto_generated(),
-                    Targets::SocketTarget(_) => false,
+                .filter(|endpoint| match endpoint.execution_target() {
+                    ExecutionTarget::Http(http_target) => *http_target.auto_generated(),
+                    ExecutionTarget::Socket(_) => false,
                 })
                 .cloned()
-                .map(|endpoint| endpoint.into())
-                .collect::<CheapVec<SimpleEndpoint>>();
+                .map(|endpoint| endpoint.try_into())
+                .collect::<Result<CheapVec<SimpleEndpoint>>>()?;
 
             simple_endpoints_by_file.push((None, endpoints));
         }
@@ -305,8 +318,8 @@ impl AppCx {
                 .iter()
                 .map(|(_, endpoint)| endpoint)
                 .cloned()
-                .map(|endpoint| endpoint.into())
-                .collect::<CheapVec<_>>();
+                .map(|endpoint| endpoint.try_into())
+                .collect::<Result<CheapVec<SimpleEndpoint>>>()?;
 
             simple_endpoints_by_file.push((None, endpoints));
         }
@@ -408,7 +421,7 @@ impl AppCx {
         }
 
         // Convert endpoint from `waveless_commons::endpoint::Endpoint` back to Silence's `SimpleEndpoint`.
-        let mut simple_endpoint = SimpleEndpoint::from(&endpoint);
+        let mut simple_endpoint = SimpleEndpoint::try_from(&endpoint)?;
         *simple_endpoint.auto_generated_mut() = false;
 
         // Delete the endpoint.
@@ -427,7 +440,7 @@ impl AppCx {
         {
             Err(err) => {
                 // Restore the old endpoint.
-                self.add_endpoint(target_path, SimpleEndpoint::from(&endpoint))
+                self.add_endpoint(target_path, SimpleEndpoint::try_from(&endpoint)?)
                     .await?;
 
                 Err(err)
@@ -453,9 +466,9 @@ impl AppCx {
             bail!("Couldn't find a loaded endpoint with the id {}", id);
         };
 
-        let auto_generated = match endpoint.target() {
-            Targets::HttpTarget(http_target) => *http_target.auto_generated(),
-            Targets::SocketTarget(_) => false,
+        let auto_generated = match endpoint.execution_target() {
+            ExecutionTarget::Http(http_target) => *http_target.auto_generated(),
+            ExecutionTarget::Socket(_) => false,
         };
 
         // Check whether an internal endpoint is being removed.
@@ -759,7 +772,7 @@ impl AppCx {
 
                         Ok(())
                     }
-                    None => Err(anyhow!(
+                    None => Err(eyre!(
                         "Target path does not exist in the current app context."
                     )),
                 }
@@ -819,19 +832,17 @@ impl AppCx {
                                     match serde_json::from_slice::<CheapVec<T>>(&file_buffer) {
                                         Ok(des) => des_buff.push((file_entry.path(), des)),
                                         Err(err) => {
-                                            Err(anyhow!(
-                                                "Cannot deserialize file '{}'.%{}",
+                                            Err(err).wrap_err(format!(
+                                                "Cannot deserialize file `{}`.",
                                                 file_entry.file_name().display(),
-                                                err.to_string()
                                             ))?;
                                         }
                                     };
                                 }
                                 Err(err) => {
-                                    Err(anyhow!(
-                                        "Cannot open the file '{}'.%{}",
+                                    Err(err).wrap_err(format!(
+                                        "Cannot open the file `{}`.",
                                         file_entry.file_name().display(),
-                                        err.to_string()
                                     ))?;
                                 }
                             }

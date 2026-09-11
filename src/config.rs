@@ -3,12 +3,11 @@
 
 use crate::*;
 
-use build::*;
+use object::*;
 use project::*;
 
-use auth::mysql::*;
-use databases::mysql::*;
-use schema::mysql::*;
+use waveless_sql::auth::mysql::*;
+use waveless_sql::databases::mysql::*;
 
 /// Silence's project config.
 #[derive(
@@ -78,20 +77,20 @@ impl Default for InternalParams {
 #[patch(attribute(derive(Clone, PartialEq, Constructor, Builder, Serialize, Deserialize, Debug)))]
 #[getset(get = "pub", get_mut = "pub")]
 pub struct DatabasesConnectionConfig {
-    main: MySQLDBConnectionConfig,
-    internal: Option<MySQLDBConnectionConfig>,
+    main: MySQLDbConnectionConfig,
+    internal: Option<MySQLDbConnectionConfig>,
 }
 
 impl Default for DatabasesConnectionConfig {
     fn default() -> Self {
         Self {
-            main: MySQLDBConnectionConfig::new(
+            main: MySQLDbConnectionConfig::new(
                 SocketAddr::new("127.0.0.1".parse().unwrap(), 3306),
                 "iissi_user".to_compact_string(),
                 "iissi$user".to_compact_string(),
                 "example_db".to_compact_string(),
             ),
-            internal: Some(MySQLDBConnectionConfig::new(
+            internal: Some(MySQLDbConnectionConfig::new(
                 SocketAddr::new("127.0.0.1".parse().unwrap(), 3306),
                 "iissi_user".to_compact_string(),
                 "iissi$user".to_compact_string(),
@@ -116,11 +115,6 @@ impl Config {
             "main".to_compact_string(),
             true,
             Arc::new(self.databases_conn.main().to_owned()),
-            Some(DataSchemaDiscoveryConfig::new(
-                Arc::new(MySQLSchemaDiscoveryMethod::new(skip_tables.to_owned())),
-                true,
-                false,
-            )),
             None,
             None,
         ));
@@ -134,19 +128,18 @@ impl Config {
             }),
             None,
             None,
-            None,
         ));
 
         database_configs
     }
 
-    pub fn into_build(self, endpoints: Endpoints) -> ExecutorBuild {
-        ExecutorBuild::new(
+    pub fn into_build(self, endpoints: Endpoints) -> ObjectArtifact {
+        ObjectArtifact::new(
             project::Config::new(
                 "Silence App".into(),
                 self.into_database_config(),
                 Some(Authentication::new(
-                    CheapVec::from_vec(vec![Arc::new(MySQLSimpleAuthenticationMethod::new(
+                    CheapVec::from_vec(vec![Arc::new(MySQLSimpleAuthentication::new(
                         Some("internal".into()),
                         self.internal_params.users_target_table.to_owned(),
                         "user_id".into(),

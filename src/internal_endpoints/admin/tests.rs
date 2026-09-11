@@ -4,29 +4,38 @@
 use crate::*;
 
 use databases::*;
-use http_execute::{request_cx::*, *};
+use http_executor::{request_cx::*, *};
 
-#[derive(Clone, Serialize, Deserialize, Getters, Display, Debug)]
+#[derive(Clone, Serialize, Deserialize, BoxedAny, Getters, Display, Debug)]
 #[display("Tests manager.")]
 pub struct EndpointTestsManager;
 
-boxed_any!(EndpointTestsManager);
+impl AnyExt for EndpointTestsManager {
+    fn name(&self) -> &str {
+        "silence_endpoint_tests"
+    }
+}
 
 /// TODO: add docs here.
 #[typetag::serde(name = "TestsManager")]
 #[async_trait]
-impl AnyHttpExecute for EndpointTestsManager {
-    async fn execute(
-        &self,
-        cx: RequestCx,
-        _: Arc<dyn AnyDatabaseConnection>,
-    ) -> Result<HttpResponse, RequestError> {
+impl AnyHttpExecutor for EndpointTestsManager {
+    async fn execute(&self, cx: PipelineCx, _db_conns: DbConns) -> PipelineResult {
+        let PipelineCx {
+            mut request,
+            response,
+        } = cx;
+
         let RequestCx {
+            request: body,
             method,
             request_params,
-            request,
             ..
-        } = cx;
+        } = &mut request;
+
+        let mut response = response.unwrap_or_default();
+
+        *response.body_mut() = None; // Empty the response body set by previous execution steps.
 
         match method {
             HttpMethod::Get => {
@@ -46,27 +55,42 @@ impl AnyHttpExecute for EndpointTestsManager {
                             ))?;
 
                         let res = serde_json::to_value(endpoint_test).map_err(|err| {
-                            RequestError::Other(anyhow!("Cannot serialize test. {}", err))
+                            RequestError::Other(eyre!(err).wrap_err("Cannot serialize test."))
                         })?;
 
-                        Ok(HttpResponse::new(None, Some(BodyValue::Json(res))))
+                        *response.body_mut() = Some(BodyValue::Json(res));
+
+                        Ok((
+                            PipelineCx {
+                                request,
+                                response: Some(response),
+                            },
+                            PipelineAction::Continue(None),
+                        ))
                     }
                     None => {
                         let endpoint_tests = AppCx::acquire().get_tests().await?;
 
                         let res = serde_json::to_value(endpoint_tests).map_err(|err| {
-                            RequestError::Other(anyhow!("Cannot serialize tests. {}", err))
+                            RequestError::Other(eyre!(err).wrap_err("Cannot serialize tests."))
                         })?;
 
-                        Ok(HttpResponse::new(None, Some(BodyValue::Json(res))))
+                        *response.body_mut() = Some(BodyValue::Json(res));
+
+                        Ok((
+                            PipelineCx {
+                                request,
+                                response: Some(response),
+                            },
+                            PipelineAction::Continue(None),
+                        ))
                     }
                     _ => unreachable!(),
                 }
             }
             HttpMethod::Post => {
                 let req_body = Bytes::from_vec(
-                    request
-                        .collect()
+                    body.collect()
                         .await
                         .map_err(|err| {
                             RequestError::Expected(
@@ -110,10 +134,16 @@ impl AnyHttpExecute for EndpointTestsManager {
                         )
                     })?;
 
-                Ok(HttpResponse::new(None, None))
+                Ok((
+                    PipelineCx {
+                        request,
+                        response: Some(response),
+                    },
+                    PipelineAction::Continue(None),
+                ))
             }
             HttpMethod::Put => {
-                let req_body = &request
+                let req_body = &body
                     .collect()
                     .await
                     .map_err(|err| {
@@ -154,7 +184,13 @@ impl AnyHttpExecute for EndpointTestsManager {
                         )
                     })?;
 
-                Ok(HttpResponse::new(None, None))
+                Ok((
+                    PipelineCx {
+                        request,
+                        response: Some(response),
+                    },
+                    PipelineAction::Continue(None),
+                ))
             }
             HttpMethod::Delete => {
                 let endpoint_test_name = match request_params.get("test_name") {
@@ -178,7 +214,13 @@ impl AnyHttpExecute for EndpointTestsManager {
                         )
                     })?;
 
-                Ok(HttpResponse::new(None, None))
+                Ok((
+                    PipelineCx {
+                        request,
+                        response: Some(response),
+                    },
+                    PipelineAction::Continue(None),
+                ))
             }
             _ => unreachable!(),
         }

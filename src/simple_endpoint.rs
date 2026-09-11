@@ -5,7 +5,9 @@ use crate::*;
 
 use mysql_proxy::*;
 
-use http_execute::mysql::*;
+use http_executor::*;
+
+use waveless_sql::http_executor::{mysql::*, *};
 
 /// Silence's endpoint.
 /// TODO: add documentation.
@@ -46,7 +48,7 @@ pub struct SimpleEndpoint {
     body_params: CheapVec<CompactString, 0>,
 
     #[patch(skip_wrap)]
-    execute: Option<MySQLExecuteProxy>,
+    execute: Option<MySQLExecutorProxy>,
 
     #[serde(default, skip_serializing_if = "should_skip_option")]
     #[patch(skip_wrap)]
@@ -83,8 +85,8 @@ impl Default for SimpleEndpoint {
             method: HttpMethod::Get,
             query_params: CheapVec::new(),
             body_params: CheapVec::new(),
-            execute: Some(MySQLExecuteProxy::new(
-                MySQLQueryWrapper::new("SELECT * FROM example".into()).into(),
+            execute: Some(MySQLExecutorProxy::new(
+                SQLQueryWrapper::new("SELECT * FROM example".into()).into(),
             )),
             description: None,
             require_auth: false,
@@ -95,37 +97,47 @@ impl Default for SimpleEndpoint {
     }
 }
 
-impl From<Endpoint> for SimpleEndpoint {
-    fn from(endpoint: Endpoint) -> Self {
-        SimpleEndpoint::from(&endpoint)
+impl TryFrom<Endpoint> for SimpleEndpoint {
+    type Error = eyre::Error;
+
+    fn try_from(endpoint: Endpoint) -> Result<Self> {
+        SimpleEndpoint::try_from(&endpoint)
     }
 }
 
-impl<'a> From<&'a Endpoint> for SimpleEndpoint {
-    fn from(endpoint: &'a Endpoint) -> Self {
-        let http_target = match endpoint.target() {
-            Targets::HttpTarget(http_target) => Some(http_target),
-            Targets::SocketTarget(_) => None,
+impl<'a> TryFrom<&'a Endpoint> for SimpleEndpoint {
+    type Error = eyre::Error;
+
+    fn try_from(endpoint: &'a Endpoint) -> Result<Self> {
+        let http_target = match endpoint.execution_target() {
+            ExecutionTarget::Http(http_target) => Some(http_target),
+            ExecutionTarget::Socket(_) => None,
         };
 
-        let execute = {
-            if let Some(http_target) = http_target {
+        let execute = 'outer: {
+            if let Some(http_target) = http_target.to_owned() {
+                let Some(execution_step) = http_target.execution_pipeline() else {
+                    break 'outer None;
+                };
+
+                let executor = execution_step.executor();
+
                 match (
-                    http_target
-                        .execute()
+                    executor
                         .to_owned()
-                        .map(|execute| execute.into_arc_any().downcast::<MySQLExecute>().ok())
-                        .flatten()
-                        .map(|execute| (*execute).to_owned()),
-                    http_target
-                        .execute()
+                        .into_arc_any()
+                        .downcast::<MySQLExecutor>()
+                        .map(|execute| (*execute).to_owned())
+                        .ok(),
+                    executor
                         .to_owned()
-                        .map(|execute| execute.into_arc_any().downcast::<MySQLExecuteProxy>().ok())
-                        .flatten()
-                        .map(|execute| (*execute).to_owned()),
+                        .into_arc_any()
+                        .downcast::<MySQLExecutorProxy>()
+                        .map(|execute| (*execute).to_owned())
+                        .ok(),
                 ) {
-                    (Some(execute), None) => Some(MySQLExecuteProxy::new(execute)),
-                    (None, Some(execute)) => Some(execute),
+                    (Some(execute), _) => Some(MySQLExecutorProxy::new(execute)),
+                    (_, Some(execute)) => Some(execute),
                     _ => None,
                 }
             } else {
@@ -133,9 +145,9 @@ impl<'a> From<&'a Endpoint> for SimpleEndpoint {
             }
         };
 
-        SimpleEndpoint {
+        Ok(SimpleEndpoint {
             id: endpoint.id().to_owned(),
-            database: endpoint.database().to_owned(),
+            database: endpoint.databases().first().cloned(),
             route: http_target
                 .map(|http_target| http_target.route().to_owned())
                 .unwrap_or("websockets".into()),
@@ -153,13 +165,19 @@ impl<'a> From<&'a Endpoint> for SimpleEndpoint {
                 .map(|http_target| http_target.body_params().to_owned())
                 .unwrap_or_default(),
             execute,
-            require_auth: *endpoint.require_auth(),
-            allowed_roles: endpoint.allowed_roles().to_owned(),
-            inject_auth_metadata: *endpoint.inject_auth_metadata(),
+            require_auth: match *endpoint.auth().level() {
+                AuthLevel::Required => true,
+                _ => false,
+            },
+            allowed_roles: endpoint.auth().allowed_roles().to_owned(),
+            inject_auth_metadata: match *endpoint.auth().level() {
+                AuthLevel::InjectWhenAvailable => true,
+                _ => false,
+            },
             auto_generated: http_target
                 .map(|http_target| *http_target.auto_generated())
                 .unwrap_or_default(),
-        }
+        })
     }
 }
 
@@ -175,11 +193,17 @@ impl<'a> Into<Endpoint> for &'a SimpleEndpoint {
 
         let mut http_target_builder = &mut HttpTargetBuilder::default();
 
-        endpoint_builder = endpoint_builder
-            .id(self.id.to_owned())
-            .require_auth(*self.require_auth())
-            .allowed_roles(self.allowed_roles.to_owned())
-            .inject_auth_metadata(self.inject_auth_metadata);
+        endpoint_builder = endpoint_builder.id(self.id.to_owned()).auth(
+            AuthBuilder::default()
+                .level(match (self.require_auth(), self.inject_auth_metadata()) {
+                    (true, _) => AuthLevel::Required,
+                    (false, true) => AuthLevel::InjectWhenAvailable,
+                    _ => AuthLevel::None,
+                })
+                .allowed_roles(self.allowed_roles.to_owned())
+                .build()
+                .unwrap(),
+        );
 
         if let Some(description) = self.description.to_owned() {
             endpoint_builder = endpoint_builder.description(description);
@@ -196,10 +220,15 @@ impl<'a> Into<Endpoint> for &'a SimpleEndpoint {
         };
 
         if let Some(execute) = self.execute.to_owned() {
-            http_target_builder = http_target_builder.execute(Arc::new(execute));
+            http_target_builder = http_target_builder.execution_pipeline(ExecutionStep::new(
+                None,
+                Arc::new(execute),
+                Default::default(),
+            ));
         }
 
-        endpoint_builder.target(Targets::HttpTarget(http_target_builder.build().unwrap()));
+        endpoint_builder
+            .execution_target(ExecutionTarget::Http(http_target_builder.build().unwrap()));
 
         endpoint_builder.build().unwrap()
     }

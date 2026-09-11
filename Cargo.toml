@@ -1,7 +1,7 @@
 [package]
 name = "silence"
 description = "An educational framework for deploying APIs (based on a MySQL schema) and web applications."
-version = "0.0.5"
+version = "0.0.6"
 homepage = "https://github.com/nv0skar/SilenceEvolution"
 repository = "https://github.com/nv0skar/SilenceEvolution"
 edition = "2024"
@@ -10,10 +10,14 @@ edition = "2024"
 rustyrosetta = { git = "https://github.com/nv0skar/RustyRosetta.git", tag = "rustyrosetta_0.0.4", features = [
     "all",
 ] }
+boxed_any = { git = "https://github.com/nv0skar/BoxedAny.git" }
+boxed_any_derive = { git = "https://github.com/nv0skar/BoxedAny.git" }
 
-waveless_commons = { git = "https://github.com/nv0skar/Waveless.git", tag = "0.1.0" }
-waveless_compiler = { git = "https://github.com/nv0skar/Waveless.git", tag = "0.1.0" }
-waveless_executor = { git = "https://github.com/nv0skar/Waveless.git", tag = "0.1.0" }
+waveless_commons = { git = "https://github.com/nv0skar/waveless.git" }
+waveless_compiler = { git = "https://github.com/nv0skar/waveless.git" }
+waveless_runtime = { git = "https://github.com/nv0skar/waveless.git" }
+
+waveless_sql = { git = "https://github.com/nv0skar/waveless_sql.git", features = ["mysql"] }
 
 tokio = { version = "1.48", features = ["full", "tracing"] }
 
@@ -22,7 +26,7 @@ futures = "0.3"
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 toml = "1.1.3"
 serde_json = "1.0"
-serde_with = { version = "3.16", features = ["chrono"] }
+serde_with = { version = "3.23", features = ["chrono"] }
 
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
@@ -93,7 +97,8 @@ itertools = "0.15"
 getset = "0.1"
 nestify = "0.3"
 either = { version = "1.15", features = ["serde"] }
-anyhow = "1.0"
+eyre = "0.6"
+color-eyre = "0.6"
 thiserror = "2.0.18"
 derive_builder = "0.20"
 derive_more = { version = "2.0", features = ["constructor", "display"] }

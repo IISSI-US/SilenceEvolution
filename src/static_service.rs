@@ -22,7 +22,7 @@ impl Service<Request<ConnBody>> for StaticService {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, request: Request<BoxBody<ConnBytes, anyhow::Error>>) -> Self::Future {
+    fn call(&mut self, request: Request<BoxBody<ConnBytes, eyre::Error>>) -> Self::Future {
         Box::pin(async move {
             let route = request.uri().path().trim_matches('/').to_owned();
 

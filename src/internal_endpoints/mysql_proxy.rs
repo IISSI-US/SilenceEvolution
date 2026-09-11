@@ -4,40 +4,47 @@
 use crate::*;
 
 use databases::*;
-use http_execute::{mysql::*, request_cx::*, *};
+
+use http_executor::{request_cx::*, *};
+
+use waveless_sql::http_executor::{mysql::*, *};
 
 /// Proxies MySQL execute queries and injects internal params on runtime.
-#[derive(Clone, PartialEq, Constructor, Serialize, Deserialize, Getters, Display, Debug)]
+#[derive(
+    Clone, PartialEq, Constructor, Serialize, Deserialize, BoxedAny, Getters, Display, Debug,
+)]
 #[display("SQL Proxy: {:?}", _0)]
 #[getset(get = "pub")]
 #[serde(transparent)]
-pub struct MySQLExecuteProxy(MySQLExecute);
+pub struct MySQLExecutorProxy(MySQLExecutor);
 
-boxed_any!(MySQLExecuteProxy);
-
-impl Default for MySQLExecuteProxy {
+impl Default for MySQLExecutorProxy {
     fn default() -> Self {
-        Self(MySQLQueryWrapper::new("SELECT * FROM example".into()).into())
+        Self(SQLQueryWrapper::new("SELECT * FROM example".into()).into())
     }
 }
 
-impl From<MySQLExecute> for MySQLExecuteProxy {
-    fn from(execute: MySQLExecute) -> Self {
+impl From<MySQLExecutor> for MySQLExecutorProxy {
+    fn from(execute: MySQLExecutor) -> Self {
         Self(execute)
+    }
+}
+
+impl AnyExt for MySQLExecutorProxy {
+    fn name(&self) -> &str {
+        "silence_mysql_proxy"
     }
 }
 
 #[typetag::serde(name = "MySQLProxy")]
 #[async_trait]
-impl AnyHttpExecute for MySQLExecuteProxy {
-    async fn execute(
-        &self,
-        mut cx: RequestCx,
-        db_conn: Arc<dyn AnyDatabaseConnection>,
-    ) -> Result<HttpResponse, RequestError> {
-        let MySQLExecuteProxy(mysql_execute) = self;
+impl AnyHttpExecutor for MySQLExecutorProxy {
+    async fn execute(&self, cx: PipelineCx, db_conns: DbConns) -> PipelineResult {
+        let MySQLExecutorProxy(mysql_execute) = self;
 
-        let RequestCx { request_params, .. } = &mut cx;
+        let PipelineCx { mut request, .. } = cx;
+
+        let RequestCx { request_params, .. } = &mut request;
 
         // Inject runtime parameters.
         let _config_guard = AppCx::acquire().config().read().await;
@@ -70,6 +77,14 @@ impl AnyHttpExecute for MySQLExecuteProxy {
             ),
         );
 
-        mysql_execute.execute(cx, db_conn).await
+        mysql_execute
+            .execute(
+                PipelineCx {
+                    request,
+                    response: None,
+                },
+                db_conns,
+            )
+            .await
     }
 }

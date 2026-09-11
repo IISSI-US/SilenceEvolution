@@ -6,9 +6,11 @@ use silence::*;
 use silence::internal_endpoints::{console::*, mysql_proxy::*};
 
 use waveless_commons::{databases::*, endpoint::*, *};
-use waveless_executor::*;
+use waveless_runtime::*;
 
-use http_execute::mysql::*;
+use waveless_sql::databases::mysql::*;
+use waveless_sql::http_executor::mysql::*;
+
 use logging::*;
 use runtime::handle_main;
 
@@ -18,9 +20,10 @@ use std::net::SocketAddr;
 
 use rustyrosetta::*;
 
-use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
+use color_eyre::Section;
 use compact_str::*;
+use eyre::{Result, eyre};
 use iocraft::prelude::*;
 use mimalloc::MiMalloc;
 use nestify::*;
@@ -151,10 +154,8 @@ async fn try_main() -> Result<ResultContext> {
                     }
 
                     // Load the Silence's app's database into the databases manager (`waveless_commons::databases::DatabasesConnections`).
-                    DatabasesConnections::load(
-                        _app_cx.config().read().await.into_database_config(),
-                    )
-                    .await?;
+                    DatabasesManager::load(_app_cx.config().read().await.into_database_config())
+                        .await?;
 
                     // Run database migrations.
                     run_migrations(internal_db_name).await?;
@@ -194,7 +195,7 @@ async fn try_main() -> Result<ResultContext> {
                             View(
                                 margin_top: 1,
                                 margin_bottom: 1,
-                                width: terminal_size::terminal_size().ok_or(anyhow!("Cannot get the terminal size."))?.0.0,
+                                width: terminal_size::terminal_size().ok_or(eyre!("Cannot get the terminal size."))?.0.0,
                                 flex_direction: FlexDirection::Column,
                                 border_style: BorderStyle::Round,
                                 border_color: Color::DarkBlue,
@@ -223,8 +224,8 @@ async fn try_main() -> Result<ResultContext> {
                                         }
                                         View(width: 250pct) {
                                             #(
-                                                match endpoint.target() {
-                                                    Targets::HttpTarget(http_target) => element! {
+                                                match endpoint.execution_target() {
+                                                    ExecutionTarget::Http(http_target) => element! {
                                                         Text(content: http_target.method().to_string())
                                                     },
                                                     _ => element! {
@@ -235,8 +236,8 @@ async fn try_main() -> Result<ResultContext> {
                                         }
                                         View(width: 250pct) {
                                             #(
-                                                match endpoint.target() {
-                                                    Targets::HttpTarget(http_target) => element! {
+                                                match endpoint.execution_target() {
+                                                    ExecutionTarget::Http(http_target) => element! {
                                                         Text(content: format!("api/{}{}", http_target.version().to_owned().map(|path| format!("{}/", path.trim_matches('/'))).unwrap_or_default(), http_target.route().to_string().trim_matches('/')))
                                                     },
                                                     _ => element! {
@@ -247,18 +248,18 @@ async fn try_main() -> Result<ResultContext> {
                                         }
                                         View(width: 250pct) {
                                             #(
-                                                match endpoint.target() {
-                                                    Targets::HttpTarget(http_target) => {
+                                                match endpoint.execution_target() {
+                                                    ExecutionTarget::Http(http_target) => {
                                                         match (
                                                             http_target
-                                                                .execute()
+                                                                .execution_pipeline()
                                                                 .to_owned()
-                                                                .map(|execute| execute.into_arc_any().downcast::<MySQLExecute>().ok())
+                                                                .map(|execute| execute.executor().to_owned().into_arc_any().downcast::<MySQLExecutor>().ok())
                                                                 .flatten(),
                                                             http_target
-                                                                .execute()
+                                                                .execution_pipeline()
                                                                 .to_owned()
-                                                                .map(|execute| execute.into_arc_any().downcast::<MySQLExecuteProxy>().ok())
+                                                                .map(|execute| execute.executor().to_owned().into_arc_any().downcast::<MySQLExecutorProxy>().ok())
                                                                 .flatten()
                                                         ) {
                                                             (Some(execute), None) => element! {
@@ -288,25 +289,32 @@ async fn try_main() -> Result<ResultContext> {
                                             )
                                         }
                                         View(width: 250pct) {
-                                            #(print_bool!(*endpoint.require_auth()))
+                                            #(print_bool!(match *endpoint.auth().level() {
+                                                AuthLevel::Required => true,
+                                                _ => false
+                                            }))
                                         }
                                         View(width: 250pct) {
-                                            #(print_bool!(*endpoint.inject_auth_metadata()))
+                                            #(print_bool!(match *endpoint.auth().level() {
+                                                AuthLevel::Required => true,
+                                                AuthLevel::InjectWhenAvailable => true,
+                                                _ => false
+                                            }))
                                         }
                                         View(width: 250pct) {
-                                            Text(content: if !endpoint.allowed_roles().is_empty() {
-                                                endpoint.allowed_roles().iter().map(|role| role.to_string()).collect::<Vec<_>>().join(", ")
+                                            Text(content: if !endpoint.auth().allowed_roles().is_empty() {
+                                                endpoint.auth().allowed_roles().iter().map(|role| role.to_string()).collect::<Vec<_>>().join(", ")
                                             } else {
                                                 "Any".to_string()
-                                            }, color: if !endpoint.allowed_roles().is_empty() {
+                                            }, color: if !endpoint.auth().allowed_roles().is_empty() {
                                                 Color::Green
                                             } else {
                                                 Color::Red
                                             })
                                         }
                                         View(width: 250pct) {
-                                            #(match endpoint.target() {
-                                                Targets::HttpTarget(http_target) => print_bool!(*http_target.auto_generated()),
+                                            #(match endpoint.execution_target() {
+                                                ExecutionTarget::Http(http_target) => print_bool!(*http_target.auto_generated()),
                                                 _ => element! {
                                                     Text(content: "—")
                                                 },
@@ -359,9 +367,10 @@ async fn try_main() -> Result<ResultContext> {
                     .await?;
                 }
                 None => {
-                    return Err(anyhow!(
-                        "We couldn't find a Silence project in the current working directory.%HINT: create a new Silence project with the `new` subcommand."
-                    ));
+                    return Err(eyre!(
+                        "We couldn't find a Silence project in the current working directory."
+                    )
+                    .suggestion("Create a new Silence project with the `new` subcommand."));
                 }
             }
 
@@ -385,7 +394,7 @@ async fn try_main() -> Result<ResultContext> {
                     db_user.to_owned(),
                     db_password.to_owned(),
                 ) {
-                    let db_conn_config = mysql::MySQLDBConnectionConfig::new(
+                    let db_conn_config = MySQLDbConnectionConfig::new(
                         db_host.unwrap_or(SocketAddr::new("127.0.0.1".parse().unwrap(), 3306)),
                         db_user,
                         db_password,
@@ -412,9 +421,10 @@ async fn try_main() -> Result<ResultContext> {
         Some(Subcommands::Migrations) => {
             // Loads Silence's app's context.
             let Some(app_cx) = AppCx::from_workspace().await? else {
-                return Err(anyhow!(
-                    "We couldn't find a Silence project in the current working directory.%HINT: create a new Silence project with the `new` subcommand."
-                ));
+                return Err(eyre!(
+                    "We couldn't find a Silence project in the current working directory."
+                )
+                .suggestion("Create a new Silence project with the `new` subcommand."));
             };
 
             // Create internal database if necessary.
@@ -433,7 +443,7 @@ async fn try_main() -> Result<ResultContext> {
                 .await?;
             }
 
-            DatabasesConnections::load(app_cx.config().read().await.into_database_config()).await?;
+            DatabasesManager::load(app_cx.config().read().await.into_database_config()).await?;
 
             run_migrations(
                 match app_cx.config().read().await.databases_conn().internal() {

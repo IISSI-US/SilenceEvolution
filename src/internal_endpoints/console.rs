@@ -4,17 +4,15 @@
 use crate::*;
 
 use databases::*;
-use socket_execute::{handshake_cx::*, *};
+use socket_executor::{handshake_cx::*, *};
 
 use tokio::sync::*;
 
 static CONSOLE_TRACING_TX: OnceCell<broadcast::Receiver<Bytes>> = OnceCell::const_new();
 
-#[derive(Clone, Serialize, Deserialize, Getters, Display, Debug)]
+#[derive(Clone, Serialize, Deserialize, BoxedAny, Getters, Display, Debug)]
 #[display("Console stream.")]
 pub struct ConsoleStream;
-
-boxed_any!(ConsoleStream);
 
 #[derive(Clone)]
 pub struct ConsoleTracingWriter(broadcast::Sender<Bytes>);
@@ -51,15 +49,21 @@ impl<'a> fmt::MakeWriter<'a> for ConsoleTracingWriter {
     }
 }
 
+impl AnyExt for ConsoleStream {
+    fn name(&self) -> &str {
+        "silence_console"
+    }
+}
+
 /// TODO: add docs here.
 #[typetag::serde(name = "ConsoleStream")]
 #[async_trait]
-impl AnySocketExecute for ConsoleStream {
+impl AnySocketExecutor for ConsoleStream {
     async fn execute(
         &self,
-        _: HandshakeCx,
+        _handshake_cx: HandshakeCx,
         websocket: HyperWebsocket,
-        _: Arc<dyn AnyDatabaseConnection>,
+        _db_conns: DbConns,
     ) -> Result<(), Infallible> {
         let Ok(mut websocket) = websocket.await else {
             panic!("Couldn't get socket stream.")
