@@ -229,7 +229,7 @@ impl AppCx {
                     )
                 }) // won't add endpoints whose id is in `Config::skip_endpoints_ids`.
                 .next()
-                .unwrap(),
+                .unwrap_or(Endpoints::default()),
         )?;
 
         Ok(endpoints)
