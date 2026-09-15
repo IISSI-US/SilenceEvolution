@@ -1,13 +1,18 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
+use std::env::var;
 use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
     println!("cargo::rerun-if-changed=['./package.json', './frontend']");
 
-    if !PathBuf::from("./target/frontend").exists() {
+    let path = PathBuf::from("./target/frontend");
+
+    let profile = var("PROFILE").unwrap_or_default();
+
+    if !path.exists() || path.is_empty() || profile.to_lowercase() == "release" {
         let build_frontend = Command::new("bun")
             .arg("run")
             .arg("build")
