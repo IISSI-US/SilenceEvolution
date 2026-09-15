@@ -220,7 +220,7 @@ impl<'a> Into<Endpoint> for &'a SimpleEndpoint {
         };
 
         if let Some(execute) = self.execute.to_owned() {
-            http_target_builder = http_target_builder.execution_pipeline(ExecutionStep::new(
+            http_target_builder = http_target_builder.execution_pipeline(ExecutionAtom::new(
                 None,
                 Arc::new(execute),
                 Default::default(),

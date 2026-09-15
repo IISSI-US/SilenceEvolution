@@ -26,7 +26,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("whoami".into())
                 .version("internal".into())
                 .method(HttpMethod::Get)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(MySQLExecutorProxy::new(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
                    SQLQueryWrapper::new("SELECT users.user_id, users.name, users.email, roles.role FROM |users_target_table| as users LEFT JOIN |roles_target_table| as roles ON (roles.user_id = users.user_id) WHERE (users.user_id = |user_id|)".into()).with_behaviour(SQLBehaviour::Unique).into()
                 )), Default::default()))
                 .auto_generated(true)
@@ -44,8 +44,8 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("bootstrap".into())
                 .version("internal".into())
                 .method(HttpMethod::Get)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(MySQLExecutorProxy::new(
-                   SQLQueryWrapper::Many { queries: CheapVec::from_iter(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
+                   SQLQueryWrapper::Many { database: None, queries: CheapVec::from_iter(
                        [
                            SQLQuery::new("INSERT INTO |roles_target_table| (user_id, role) SELECT users.user_id, 'admin' FROM |users_target_table| as users WHERE (SELECT COUNT(*) FROM |users_target_table|) = 1".into(), false, SQLBehaviour::Permissive),
                            SQLQuery::new("SELECT roles.role FROM |roles_target_table| as roles WHERE (roles.user_id = |user_id|);".into(), true, SQLBehaviour::Unique)
@@ -67,7 +67,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Get)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(MySQLExecutorProxy::new(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
                    SQLQueryWrapper::new("SELECT users.user_id, users.name, users.email, roles.role, users.password FROM |users_target_table| as users LEFT JOIN |roles_target_table| as roles ON (roles.user_id = users.user_id)".into()).into()
                 )), Default::default()))
                 .auto_generated(true)
@@ -85,7 +85,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users/{id}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Get)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(MySQLExecutorProxy::new(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
                    SQLQueryWrapper::new("SELECT users.user_id, users.name, users.email, roles.role, users.password FROM |users_target_table| as users LEFT JOIN |roles_target_table| as roles ON (roles.user_id = users.user_id) WHERE (users.user_id = {id})".into()).with_behaviour(SQLBehaviour::Unique).into()
                 )), Default::default()))
                 .auto_generated(true)
@@ -103,7 +103,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Post)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(MySQLExecutorProxy::new(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
                    SQLQueryWrapper::new("INSERT INTO |users_target_table| (name, email, password) VALUES ({name}, {email}, {password}); INSERT INTO |roles_target_table| (user_id, role) SELECT users.user_id, {role} FROM |users_target_table| as users WHERE (users.email = {email});".into()).with_include(false).into()
                 )), Default::default())) // maybe `RETURNING` does not work with preparated statements?
                 .body_params(CheapVec::from_vec(vec!["name".into(), "email".into(), "role".into(), "password".into()]))
@@ -122,7 +122,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users/{id}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Put)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(MySQLExecutorProxy::new(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
                    SQLQueryWrapper::new("UPDATE |users_target_table| SET name={name}, email={email}, password={password} WHERE (user_id = {id}); REPLACE INTO |roles_target_table| (user_id, role) VALUES ({id}, {role});".into()).with_include(false).into()
                 )), Default::default()))
                 .body_params(CheapVec::from_vec(vec!["name".into(), "email".into(), "role".into(), "password".into()]))
@@ -141,7 +141,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users/{id}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Delete)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(MySQLExecutorProxy::new(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
                    SQLQueryWrapper::new("DELETE FROM |users_target_table| WHERE (user_id = {id})".into()).with_include(false).into()
                 )), Default::default()))
                 .auto_generated(true)
@@ -159,7 +159,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users/{id}/role".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Delete)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(MySQLExecutorProxy::new(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
                    SQLQueryWrapper::new("DELETE FROM |roles_target_table| WHERE (user_id = {id})".into()).with_include(false).into()
                 )), Default::default()))
                 .auto_generated(true)
@@ -176,7 +176,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("endpoints".into())
                 .version("internal".into())
                 .method(HttpMethod::Get)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointsManager), Default::default()))
                 .auto_generated(true)
                 .build()
                 .unwrap()
@@ -190,7 +190,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("endpoints/{endpoint_id}".into())
                 .version("internal".into())
                 .method(HttpMethod::Get)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointsManager), Default::default()))
                 .auto_generated(true)
                 .build()
                 .unwrap()
@@ -204,7 +204,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("endpoints".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Post)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointsManager), Default::default()))
                 .capture_all_params(true)
                 .auto_generated(true)
                 .build()
@@ -220,7 +220,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("endpoints/{endpoint_id}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Put)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointsManager), Default::default()))
                 .capture_all_params(true)
                 .auto_generated(true)
                 .build()
@@ -236,7 +236,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("endpoints/{id}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Delete)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointsManager), Default::default()))
                 .auto_generated(true)
                 .build()
                 .unwrap()
@@ -251,7 +251,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("tests".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Get)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointTestsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointTestsManager), Default::default()))
                 .auto_generated(true)
                 .build()
                 .unwrap()
@@ -266,7 +266,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("tests/{test_name}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Get)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointTestsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointTestsManager), Default::default()))
                 .auto_generated(true)
                 .build()
                 .unwrap()
@@ -281,7 +281,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("tests".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Post)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointTestsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointTestsManager), Default::default()))
                 .capture_all_params(true)
                 .auto_generated(true)
                 .build()
@@ -297,7 +297,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("tests/{test_name}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Put)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointTestsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointTestsManager), Default::default()))
                 .capture_all_params(true)
                 .auto_generated(true)
                 .build()
@@ -313,7 +313,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("tests/{test_name}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Delete)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(EndpointTestsManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointTestsManager), Default::default()))
                 .capture_all_params(true)
                 .auto_generated(true)
                 .build()
@@ -329,7 +329,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("config".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Get)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(ConfigManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(ConfigManager), Default::default()))
                 .auto_generated(true)
                 .build()
                 .unwrap()
@@ -344,7 +344,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("config".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Put)
-                .execution_pipeline(ExecutionStep::new(None, Arc::new(ConfigManager), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(ConfigManager), Default::default()))
                 .capture_all_params(true)
                 .auto_generated(true)
                 .build()
