@@ -444,379 +444,415 @@ export default (_: RouteSectionProps) => {
                     hide_timeout={!get_alert()?.is_error ? 5000 : undefined}
                 ></AlertBox>
 
-                <form
-                    id="form"
-                    class="[&_span]:mb-1"
-                    onInput={(event) => {
-                        if (get_alert()?.is_error) set_alert(undefined);
+                <div class="lg:flex lg:flex-row">
+                    <div class="lg:basis-full">
+                        <form
+                            id="form"
+                            class="[&_span]:mb-1"
+                            onInput={(event) => {
+                                if (get_alert()?.is_error) set_alert(undefined);
 
-                        let form = event.currentTarget;
-                        let submit = document.getElementById("submit");
+                                let form = event.currentTarget;
+                                let submit = document.getElementById("submit");
 
-                        if (form.checkValidity()) {
-                            submit?.classList.remove("btn-disabled");
-                        } else submit?.classList.add("btn-disabled");
-                    }}
-                >
-                    <fieldset class="fieldset flex gap-1">
-                        <input
-                            name="method"
-                            type="text"
-                            class="input p-0 inline-20 text-center font-bold w-min"
-                            classList={{
-                                "hidden!": endpoint_by_file() === undefined,
+                                if (form.checkValidity()) {
+                                    submit?.classList.remove("btn-disabled");
+                                } else submit?.classList.add("btn-disabled");
                             }}
-                            value={endpoint_by_file()?.endpoint.method}
-                            readOnly
-                        />
-                        <input
-                            name="route"
-                            type="text"
-                            class="input w-full"
-                            popovertarget={`endpoint-selector-dropdown`}
-                            style={`anchor-name:--endpoint-selector`}
-                            value={
-                                test_schema.base_route ?? "Select an endpoint"
-                            }
-                            onClick={(event) => {
-                                const target = event.currentTarget;
-
-                                const dropdown =
-                                    target.nextSibling as HTMLUListElement;
-
-                                dropdown.togglePopover();
-                            }}
-                            readOnly
-                        />
-                        <ul
-                            id={`endpoint-selector-dropdown`}
-                            class="dropdown menu lg:min-w-1/2 w-max max-w-screen not-lg:m-0! h-1/2 rounded-box bg-base-200/25 border-base-300 overflow-y-scroll overscroll-none border backdrop-blur-sm backdrop-brightness-110 shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
-                            style={`position-anchor:--endpoint-selector; inset: auto; align-self: anchor-center; justify-self: anchor-center; margin: 0.5rem;`}
-                            onClick={(event) =>
-                                (
-                                    event.currentTarget as HTMLUListElement
-                                ).togglePopover()
-                            }
-                            popover
                         >
-                            <Index each={endpoints()}>
-                                {(endpoint_by_file, _) => (
-                                    <li>
-                                        <button
-                                            onClick={(event) => {
-                                                event.preventDefault();
-                                                set_id(
-                                                    endpoint_by_file().endpoint
-                                                        .id,
+                            <fieldset class="fieldset flex gap-1">
+                                <input
+                                    name="method"
+                                    type="text"
+                                    class="input p-0 inline-20 text-center font-bold w-min"
+                                    classList={{
+                                        "hidden!":
+                                            endpoint_by_file() === undefined,
+                                    }}
+                                    value={endpoint_by_file()?.endpoint.method}
+                                    readOnly
+                                />
+                                <input
+                                    name="route"
+                                    type="text"
+                                    class="input w-full"
+                                    popovertarget={`endpoint-selector-dropdown`}
+                                    style={`anchor-name:--endpoint-selector`}
+                                    value={
+                                        test_schema.base_route ??
+                                        "Select an endpoint"
+                                    }
+                                    onClick={(event) => {
+                                        const target = event.currentTarget;
+
+                                        const dropdown =
+                                            target.nextSibling as HTMLUListElement;
+
+                                        dropdown.togglePopover();
+                                    }}
+                                    readOnly
+                                />
+                                <ul
+                                    id={`endpoint-selector-dropdown`}
+                                    class="dropdown menu lg:min-w-1/2 w-max max-w-screen not-lg:m-0! h-1/2 rounded-box bg-base-200/25 border-base-300 overflow-y-scroll overscroll-none border backdrop-blur-sm backdrop-brightness-110 shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
+                                    style={`position-anchor:--endpoint-selector; inset: auto; align-self: anchor-center; justify-self: anchor-center; margin: 0.5rem;`}
+                                    onClick={(event) =>
+                                        (
+                                            event.currentTarget as HTMLUListElement
+                                        ).togglePopover()
+                                    }
+                                    popover
+                                >
+                                    <Index each={endpoints()}>
+                                        {(endpoint_by_file, _) => (
+                                            <li>
+                                                <button
+                                                    onClick={(event) => {
+                                                        event.preventDefault();
+                                                        set_id(
+                                                            endpoint_by_file()
+                                                                .endpoint.id,
+                                                        );
+                                                    }}
+                                                    tabIndex="1"
+                                                >
+                                                    <div class="flex not-lg:flex-col lg:gap-2">
+                                                        <span class="font-bold">
+                                                            {
+                                                                endpoint_by_file()
+                                                                    .endpoint.id
+                                                            }
+                                                        </span>
+                                                        <span>
+                                                            {normalize_route(
+                                                                endpoint_by_file()!
+                                                                    .endpoint
+                                                                    .route,
+                                                                endpoint_by_file()!
+                                                                    .endpoint
+                                                                    .version,
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            </li>
+                                        )}
+                                    </Index>
+                                </ul>
+                            </fieldset>
+
+                            <Show when={should_show_test()}>
+                                <details
+                                    class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1"
+                                    classList={{
+                                        hidden:
+                                            test_schema.route_params!.length ===
+                                            0,
+                                    }}
+                                    open
+                                >
+                                    <summary class="collapse-title font-semibold transition duration-200 hover:bg-base-200">
+                                        Route params
+                                    </summary>
+                                    <div class="collapse-content">
+                                        <fieldset
+                                            class="fieldset [&_.input]:w-full lg:grid-cols-3 gap-3"
+                                            ref={route_params_element}
+                                        >
+                                            <Index
+                                                each={test_schema.route_params!}
+                                            >
+                                                {(param) => {
+                                                    return (
+                                                        <>
+                                                            <label>
+                                                                <span class="label">
+                                                                    {param()}
+                                                                </span>
+                                                                <input
+                                                                    name={param()}
+                                                                    type="text"
+                                                                    class="input"
+                                                                    placeholder="—"
+                                                                    value={
+                                                                        test_by_file()
+                                                                            ? ((test_by_file()
+                                                                                  ?.test[
+                                                                                  "route_params"
+                                                                              ] ??
+                                                                                  "")[
+                                                                                  param()
+                                                                              ] ??
+                                                                              "")
+                                                                            : ""
+                                                                    }
+                                                                    required
+                                                                />
+                                                            </label>
+                                                        </>
+                                                    );
+                                                }}
+                                            </Index>
+                                        </fieldset>
+                                    </div>
+                                </details>
+
+                                <details
+                                    class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1"
+                                    open
+                                >
+                                    <summary class="collapse-title font-semibold transition duration-200 hover:bg-base-200">
+                                        Query params
+                                    </summary>
+                                    <div class="collapse-content">
+                                        <fieldset
+                                            id="query_params"
+                                            class="fieldset [&_.input]:w-full lg:grid-cols-3 gap-3 empty:hidden"
+                                            ref={query_params_element}
+                                        >
+                                            <Index
+                                                each={test_schema.query_params!}
+                                            >
+                                                {(param, _) => {
+                                                    return (
+                                                        <>
+                                                            <label>
+                                                                <div class="flex">
+                                                                    <input
+                                                                        type="text"
+                                                                        class="field_name label bg-transparent! outline-0"
+                                                                        placeholder="Query param name"
+                                                                        value={param()}
+                                                                    />
+                                                                    <div
+                                                                        class="self-end text-right ml-auto opacity-75 scale-75 transition duration-200 hover:opacity-50"
+                                                                        onClick={(
+                                                                            event,
+                                                                        ) => {
+                                                                            const parent =
+                                                                                event
+                                                                                    .currentTarget
+                                                                                    .parentElement!
+                                                                                    .parentElement;
+
+                                                                            parent!.remove();
+                                                                        }}
+                                                                    >
+                                                                        <span class="material-symbols-outlined">
+                                                                            delete
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <input
+                                                                    type="text"
+                                                                    class="field_value input"
+                                                                    placeholder="—"
+                                                                    value={
+                                                                        test_by_file()
+                                                                            ? (test_by_file()
+                                                                                  ?.test[
+                                                                                  "query_params"
+                                                                              ]![
+                                                                                  param()
+                                                                              ] ??
+                                                                              "")
+                                                                            : ""
+                                                                    }
+                                                                />
+                                                            </label>
+                                                        </>
+                                                    );
+                                                }}
+                                            </Index>
+                                        </fieldset>
+                                        <div
+                                            class="btn text-sm mt-2 text-right"
+                                            onClick={(_) => {
+                                                let query_params = Array.from(
+                                                    test_schema.query_params!,
+                                                );
+
+                                                query_params.push("");
+
+                                                set_test_schema(
+                                                    "query_params",
+                                                    query_params,
                                                 );
                                             }}
-                                            tabIndex="1"
                                         >
-                                            <div class="flex not-lg:flex-col lg:gap-2">
-                                                <span class="font-bold">
-                                                    {
-                                                        endpoint_by_file()
-                                                            .endpoint.id
+                                            <span class="material-symbols-outlined lg:hidden!">
+                                                add
+                                            </span>
+                                            <span class="not-lg:hidden">
+                                                Add query param
+                                            </span>
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <label class="my-1">
+                                    <span class="label text-xs">Body</span>
+                                    <div class="overflow-auto overscroll-contain">
+                                        <div class="grid grid-cols-1 box-border min-w-0 font-mono **:text-sm **:leading-6 overflow-hidden">
+                                            <div
+                                                class="bg-base-200/75 p-3 border border-base-300 col-start-1 row-start-1 rounded-2xl w-full h-full inset-0 backdrop-brightness-125 backdrop-blur-xs pointer-events-none whitespace-pre-wrap wrap-break-word z-10 min-w-0 overflow-hidden"
+                                                ref={async (element) => {
+                                                    createEffect(async () => {
+                                                        if (
+                                                            test_schema.base_route !==
+                                                            undefined
+                                                        ) {
+                                                            element.innerHTML =
+                                                                await json_grammar()?.highlight(
+                                                                    req_body() ??
+                                                                        default_body()!,
+                                                                )!;
+                                                        }
+                                                    });
+                                                }}
+                                            ></div>
+                                            <textarea
+                                                id="body"
+                                                name="body"
+                                                class="bg-transparent p-3 border text-transparent caret-info col-start-1 row-start-1 whitespace-pre-wrap w-full min-h-14 not-focus:text-transparent z-20 min-w-0 outline-0 resize-none"
+                                                spellcheck="false"
+                                                onKeyDown={(event) => {
+                                                    let target =
+                                                        event.currentTarget;
+
+                                                    if (event.key === "Tab") {
+                                                        event.preventDefault();
+
+                                                        let value =
+                                                                target.value,
+                                                            start =
+                                                                target.selectionStart,
+                                                            end =
+                                                                target.selectionEnd;
+                                                        target.value =
+                                                            value.substring(
+                                                                0,
+                                                                start,
+                                                            ) +
+                                                            "\t" +
+                                                            value.substring(
+                                                                end,
+                                                            );
+                                                        target.selectionStart =
+                                                            target.selectionEnd =
+                                                                start + 1;
                                                     }
-                                                </span>
-                                                <span>
-                                                    {normalize_route(
-                                                        endpoint_by_file()!
-                                                            .endpoint.route,
-                                                        endpoint_by_file()!
-                                                            .endpoint.version,
-                                                    )}
-                                                </span>
-                                            </div>
-                                        </button>
-                                    </li>
-                                )}
-                            </Index>
-                        </ul>
-                    </fieldset>
-
-                    <Show when={should_show_test()}>
-                        <details
-                            class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1"
-                            classList={{
-                                hidden: test_schema.route_params!.length === 0,
-                            }}
-                            open
-                        >
-                            <summary class="collapse-title font-semibold transition duration-200 hover:bg-base-200">
-                                Route params
-                            </summary>
-                            <div class="collapse-content">
-                                <fieldset
-                                    class="fieldset [&_.input]:w-full lg:grid-cols-3 gap-3"
-                                    ref={route_params_element}
-                                >
-                                    <Index each={test_schema.route_params!}>
-                                        {(param) => {
-                                            return (
-                                                <>
-                                                    <label>
-                                                        <span class="label">
-                                                            {param()}
-                                                        </span>
-                                                        <input
-                                                            name={param()}
-                                                            type="text"
-                                                            class="input"
-                                                            placeholder="—"
-                                                            value={
-                                                                test_by_file()
-                                                                    ? ((test_by_file()
-                                                                          ?.test[
-                                                                          "route_params"
-                                                                      ] ?? "")[
-                                                                          param()
-                                                                      ] ?? "")
-                                                                    : ""
-                                                            }
-                                                            required
-                                                        />
-                                                    </label>
-                                                </>
-                                            );
-                                        }}
-                                    </Index>
-                                </fieldset>
-                            </div>
-                        </details>
-
-                        <details
-                            class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1"
-                            open
-                        >
-                            <summary class="collapse-title font-semibold transition duration-200 hover:bg-base-200">
-                                Query params
-                            </summary>
-                            <div class="collapse-content">
-                                <fieldset
-                                    id="query_params"
-                                    class="fieldset [&_.input]:w-full lg:grid-cols-3 gap-3 empty:hidden"
-                                    ref={query_params_element}
-                                >
-                                    <Index each={test_schema.query_params!}>
-                                        {(param, _) => {
-                                            return (
-                                                <>
-                                                    <label>
-                                                        <div class="flex">
-                                                            <input
-                                                                type="text"
-                                                                class="field_name label bg-transparent! outline-0"
-                                                                placeholder="Query param name"
-                                                                value={param()}
-                                                            />
-                                                            <div
-                                                                class="self-end text-right ml-auto opacity-75 scale-75 transition duration-200 hover:opacity-50"
-                                                                onClick={(
-                                                                    event,
-                                                                ) => {
-                                                                    const parent =
-                                                                        event
-                                                                            .currentTarget
-                                                                            .parentElement!
-                                                                            .parentElement;
-
-                                                                    parent!.remove();
-                                                                }}
-                                                            >
-                                                                <span class="material-symbols-outlined">
-                                                                    delete
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <input
-                                                            type="text"
-                                                            class="field_value input"
-                                                            placeholder="—"
-                                                            value={
-                                                                test_by_file()
-                                                                    ? (test_by_file()
-                                                                          ?.test[
-                                                                          "query_params"
-                                                                      ]![
-                                                                          param()
-                                                                      ] ?? "")
-                                                                    : ""
-                                                            }
-                                                        />
-                                                    </label>
-                                                </>
-                                            );
-                                        }}
-                                    </Index>
-                                </fieldset>
-                                <div
-                                    class="btn text-sm mt-2 text-right"
-                                    onClick={(_) => {
-                                        let query_params = Array.from(
-                                            test_schema.query_params!,
-                                        );
-
-                                        query_params.push("");
-
-                                        set_test_schema(
-                                            "query_params",
-                                            query_params,
-                                        );
-                                    }}
-                                >
-                                    <span class="material-symbols-outlined lg:hidden!">
-                                        add
-                                    </span>
-                                    <span class="not-lg:hidden">
-                                        Add query param
-                                    </span>
-                                </div>
-                            </div>
-                        </details>
-
-                        <label class="my-1">
-                            <span class="label text-xs">Body</span>
-                            <div class="overflow-auto overscroll-contain">
-                                <div class="grid grid-cols-1 box-border min-w-0 font-mono **:text-sm **:leading-6 overflow-hidden">
-                                    <div
-                                        class="bg-base-200/75 p-3 border border-base-300 col-start-1 row-start-1 rounded-2xl w-full h-full inset-0 backdrop-brightness-125 backdrop-blur-xs pointer-events-none whitespace-pre-wrap wrap-break-word z-10 min-w-0 overflow-hidden"
-                                        ref={async (element) => {
-                                            createEffect(async () => {
-                                                if (
-                                                    test_schema.base_route !==
+                                                }}
+                                                value={default_body()}
+                                                placeholder="Body"
+                                                onInput={async (event) => {
+                                                    set_req_body(
+                                                        event.currentTarget
+                                                            .value,
+                                                    );
+                                                }}
+                                                required={
+                                                    endpoint_by_file() ===
                                                     undefined
-                                                ) {
-                                                    element.innerHTML =
-                                                        await json_grammar()?.highlight(
-                                                            req_body() ??
-                                                                default_body()!,
-                                                        )!;
                                                 }
-                                            });
+                                                ref={req_body_element}
+                                            />
+                                        </div>
+                                    </div>
+                                </label>
+                            </Show>
+                        </form>
+                        <div class="flex gap-1 my-2 text-xs font-bold">
+                            <span>Authorization header: </span>
+                            <div class="font-mono">
+                                {authorization() !== undefined ? (
+                                    <span class="text-green-500">
+                                        {authorization()!}
+                                    </span>
+                                ) : (
+                                    <span class="text-red-500">no</span>
+                                )}
+                            </div>
+                        </div>
+                        <Show when={should_show_test()}>
+                            <div class="flex gap-2 [&_button]:rounded-xl [&_button]:hover:shadow">
+                                <button
+                                    id="submit"
+                                    type="submit"
+                                    class="btn text-black btn-success"
+                                    classList={{
+                                        "btn-disabled":
+                                            test_by_file() === undefined &&
+                                            test_schema.route_params?.length !==
+                                                0,
+                                    }}
+                                    onClick={send_req}
+                                >
+                                    Send
+                                </button>
+                                <div class="flex gap-2 ml-auto">
+                                    <button
+                                        class="btn btn-active hover:text-white hover:bg-red-600"
+                                        classList={{
+                                            hidden:
+                                                test_by_file() === undefined,
                                         }}
-                                    ></div>
-                                    <textarea
-                                        id="body"
-                                        name="body"
-                                        class="bg-transparent p-3 border text-transparent caret-info col-start-1 row-start-1 whitespace-pre-wrap w-full min-h-14 not-focus:text-transparent z-20 min-w-0 outline-0 resize-none"
-                                        spellcheck="false"
-                                        onKeyDown={(event) => {
-                                            let target = event.currentTarget;
-
-                                            if (event.key === "Tab") {
-                                                event.preventDefault();
-
-                                                let value = target.value,
-                                                    start =
-                                                        target.selectionStart,
-                                                    end = target.selectionEnd;
-                                                target.value =
-                                                    value.substring(0, start) +
-                                                    "\t" +
-                                                    value.substring(end);
-                                                target.selectionStart =
-                                                    target.selectionEnd =
-                                                        start + 1;
-                                            }
-                                        }}
-                                        value={default_body()}
-                                        placeholder="Body"
-                                        onInput={async (event) => {
-                                            set_req_body(
-                                                event.currentTarget.value,
-                                            );
-                                        }}
-                                        required={
-                                            endpoint_by_file() === undefined
-                                        }
-                                        ref={req_body_element}
-                                    />
+                                        data-confirmed={false}
+                                        onClick={confirm_btn(delete_test)}
+                                        ref={delete_test_element}
+                                    >
+                                        Delete test
+                                    </button>
+                                    <button
+                                        id="save_test"
+                                        class="btn btn-active hover:text-black hover:btn-info"
+                                        onClick={save_test}
+                                    >
+                                        Save
+                                    </button>
                                 </div>
                             </div>
-                        </label>
-                    </Show>
-                </form>
-                <div class="flex gap-1 my-2 text-xs font-bold">
-                    <span>Authorization header: </span>
-                    <div class="font-mono">
-                        {authorization() !== undefined ? (
-                            <span class="text-green-500">
-                                {authorization()!}
-                            </span>
-                        ) : (
-                            <span class="text-red-500">no</span>
-                        )}
+                        </Show>
                     </div>
-                </div>
-                <Show when={should_show_test()}>
-                    <div class="flex gap-2 [&_button]:rounded-xl [&_button]:hover:shadow">
-                        <button
-                            id="submit"
-                            type="submit"
-                            class="btn text-black btn-success"
-                            classList={{
-                                "btn-disabled":
-                                    test_by_file() === undefined &&
-                                    test_schema.route_params?.length !== 0,
-                            }}
-                            onClick={send_req}
-                        >
-                            Send
-                        </button>
-                        <div class="flex gap-2 ml-auto">
+
+                    <div
+                        class="flex flex-col basis-auto min-h-full gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-box lg:mx-6 not-lg:my-4 p-4 transition-all transition-discrete ease-in-out duration-500"
+                        classList={{
+                            "invisible opacity-0 lg:min-w-0! not-lg:min-h-0! w-0! h-0! mx-0! my-0! p-0! *:opacity-0 overflow-hidden pointer-events-none":
+                                response() === undefined,
+                        }}
+                    >
+                        <div class="flex items-center">
+                            <span class="text-xs">
+                                Response from{" "}
+                                <span class="font-mono">
+                                    {response()?.route}
+                                </span>{" "}
+                                at{" "}
+                                <span class="font-mono">
+                                    {response()?.time}
+                                </span>{" "}
+                                with status{" "}
+                                <span class="font-mono">
+                                    {response()?.status}
+                                </span>
+                            </span>
+
                             <button
-                                class="btn btn-active hover:text-white hover:bg-red-600"
-                                classList={{
-                                    hidden: test_by_file() === undefined,
+                                class="text-sm ml-auto hover:scale-105 duration-200"
+                                onClick={() => {
+                                    set_response(undefined);
                                 }}
-                                data-confirmed={false}
-                                onClick={confirm_btn(delete_test)}
-                                ref={delete_test_element}
                             >
-                                Delete test
-                            </button>
-                            <button
-                                id="save_test"
-                                class="btn btn-active hover:text-black hover:btn-info"
-                                onClick={save_test}
-                            >
-                                Save
+                                CLEAR
                             </button>
                         </div>
+
+                        <p
+                            class="text-sm font-mono cursor-text whitespace-pre-wrap"
+                            ref={response_body_element}
+                        ></p>
                     </div>
-                </Show>
-
-                <div
-                    class="flex flex-col gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-box my-2 p-4 transition-all transition-discrete ease-in-out duration-500"
-                    classList={{
-                        "invisible opacity-0 min-h-0! h-0! my-0! p-0! *:opacity-0 overflow-hidden pointer-events-none":
-                            response() === undefined,
-                    }}
-                >
-                    <div class="flex items-center">
-                        <span class="text-xs">
-                            Response from{" "}
-                            <span class="font-mono">{response()?.route}</span>{" "}
-                            at <span class="font-mono">{response()?.time}</span>{" "}
-                            with status{" "}
-                            <span class="font-mono">{response()?.status}</span>
-                        </span>
-
-                        <button
-                            class="text-sm ml-auto hover:scale-105 duration-200"
-                            onClick={() => {
-                                set_response(undefined);
-                            }}
-                        >
-                            CLEAR
-                        </button>
-                    </div>
-
-                    <p
-                        class="text-sm font-mono cursor-text whitespace-pre-wrap"
-                        ref={response_body_element}
-                    ></p>
                 </div>
             </div>
         </>

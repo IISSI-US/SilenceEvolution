@@ -71,11 +71,11 @@ export default () => {
                             type="password"
                             class="input peer validator"
                             placeholder="Password"
-                            minLength="8"
+                            minLength="4"
                             required
                         />
                         <p class="text-error pt-1 hidden peer-not-placeholder-shown:peer-invalid:peer-focus:block">
-                            Password must have 8 characters or more.
+                            Password must have 4 characters or more.
                         </p>
                     </label>
 
