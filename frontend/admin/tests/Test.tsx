@@ -816,9 +816,9 @@ export default (_: RouteSectionProps) => {
                     </div>
 
                     <div
-                        class="flex flex-col basis-auto min-h-full gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-box lg:mx-6 not-lg:my-4 p-4 transition-all transition-discrete ease-in-out duration-500"
+                        class="flex flex-col basis-auto min-w-2/3 min-h-full gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-box lg:mx-6 not-lg:my-4 p-4 transition-all transition-discrete ease-in-out duration-500"
                         classList={{
-                            "invisible opacity-0 lg:min-w-0! not-lg:min-h-0! w-0! h-0! mx-0! my-0! p-0! *:opacity-0 overflow-hidden pointer-events-none":
+                            "invisible opacity-0 lg:min-w-0! not-lg:min-h-0! w-0! h-0! mx-0! my-0! p-0! basis-auto! *:opacity-0 overflow-hidden pointer-events-none":
                                 response() === undefined,
                         }}
                     >
