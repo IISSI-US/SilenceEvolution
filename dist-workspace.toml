@@ -4,7 +4,7 @@ members = ["cargo:."]
 [dist]
 cargo-dist-version = "0.32.0"
 installers = ["shell", "homebrew", "powershell"]
-tap = "nv0skar/homebrew-tap"
+tap = "IISSI-US/homebrew-tap"
 publish-jobs = ["homebrew"]
 targets = ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "aarch64-apple-darwin", "aarch64-pc-windows-gnullvm", "x86_64-pc-windows-gnu"]
 dist-dir = "target/distribution"
