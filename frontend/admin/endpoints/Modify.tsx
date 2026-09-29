@@ -3,9 +3,10 @@
 
 import AppCx from "@admin/AppCx";
 
-import { type Endpoint } from "@admin/endpoints";
+import { type Endpoint, type EndpointByFile } from "@admin/endpoints";
 
 import AlertBox, { type AlertStruct } from "@admin/components/AlertContainer";
+import RawSchema from "@admin/components/RawSchema";
 import { confirm_btn } from "@admin/components/ConfirmButton";
 
 import {
@@ -38,15 +39,42 @@ export default (_: RouteSectionProps) => {
 
     const id = useParams()["id"];
 
-    const endpoint_by_file = createMemo(() => {
-        return id !== undefined && endpoints() !== undefined
-            ? endpoints()!.filter((endpoint_pair) => {
-                  return endpoint_pair.endpoint.id == id;
-              })[0]!
-            : undefined;
+    // Raw schema mode.
+    const [get_raw_schema_mode, set_raw_schema_mode] =
+        createSignal<boolean>(false);
+
+    // Raw schema.
+    const [get_raw_schema, set_raw_schema] = createSignal<string | undefined>(
+        undefined,
+    );
+
+    const endpoint_by_file = createMemo((): EndpointByFile | undefined => {
+        const original_def =
+            id !== undefined && endpoints() !== undefined
+                ? endpoints()!.filter((endpoint_pair) => {
+                      return endpoint_pair.endpoint.id == id;
+                  })[0]!
+                : undefined;
+
+        if (get_raw_schema()) {
+            try {
+                return {
+                    endpoint: {
+                        ...original_def!.endpoint,
+                        ...(JSON.parse(get_raw_schema() ?? "") as Endpoint),
+                    },
+                } as EndpointByFile;
+            } catch {
+                console.log(
+                    "Cannot deserialize the raw schema. Falling back to original definition.",
+                );
+            }
+        }
+
+        return original_def;
     });
 
-    const submit_endpoint = async () => {
+    const serialize_fields = () => {
         const form = document.getElementById("form")! as HTMLFormElement;
 
         const form_data = Object.fromEntries(new FormData(form));
@@ -100,8 +128,14 @@ export default (_: RouteSectionProps) => {
             }
         }
 
+        return req;
+    };
+
+    const submit_endpoint = async () => {
+        const req = serialize_fields();
+
         const res = await fetch(
-            `/api/internal/admin/endpoints/${endpoint_by_file() ? endpoint_by_file()!.endpoint.id : ""}${(form_data["path"] ?? "".length !== 0) ? `?target_file=${form_data["path"]}` : ""}`,
+            `/api/internal/admin/endpoints/${endpoint_by_file() ? endpoint_by_file()!.endpoint.id : ""}${(req["path" as keyof Endpoint] ?? "".length !== 0) ? `?target_file=${req["path" as keyof Endpoint]}` : ""}`,
             {
                 method: endpoint_by_file() ? "put" : "post",
                 body: JSON.stringify(req),
@@ -169,14 +203,20 @@ export default (_: RouteSectionProps) => {
     };
 
     createEffect(async () => {
-        if (endpoint_by_file() !== undefined)
+        if (endpoint_by_file() !== undefined) {
+            if (!get_raw_schema_mode())
+                set_raw_schema(JSON.stringify(serialize_fields(), null, "\t"));
+
             format_sql(
-                endpoint_by_file()!
-                    .endpoint.execute?.queries!.map(
-                        (mysql_query) => mysql_query.query,
-                    )
-                    .join("; ") ?? "",
+                endpoint_by_file()!.endpoint.execute?.queries
+                    ? endpoint_by_file()!
+                          .endpoint.execute!.queries!.map(
+                              (mysql_query) => mysql_query.query,
+                          )
+                          .join("; ")
+                    : endpoint_by_file()!.endpoint.execute?.query!,
             );
+        }
     });
 
     createEffect(() => {
@@ -217,8 +257,15 @@ export default (_: RouteSectionProps) => {
                     <form
                         id="form"
                         class="[&_span]:mb-1"
+                        classList={{
+                            hidden: get_raw_schema_mode(),
+                        }}
                         onInput={(event) => {
                             set_alert(undefined);
+
+                            set_raw_schema(
+                                JSON.stringify(serialize_fields(), null, "\t"),
+                            );
 
                             let form = event.currentTarget;
                             let submit = document.getElementById("submit");
@@ -325,11 +372,19 @@ export default (_: RouteSectionProps) => {
                                                 ? endpoint_by_file()!.endpoint
                                                       .execute !== undefined
                                                     ? endpoint_by_file()!
-                                                          .endpoint.execute!.queries!.map(
-                                                              (mysql_query) =>
-                                                                  mysql_query.query,
-                                                          )
-                                                          .join("; ")
+                                                          .endpoint.execute!
+                                                          .queries
+                                                        ? endpoint_by_file()!
+                                                              .endpoint.execute!.queries!.map(
+                                                                  (
+                                                                      mysql_query,
+                                                                  ) =>
+                                                                      mysql_query.query,
+                                                              )
+                                                              .join("; ")
+                                                        : endpoint_by_file()!
+                                                              .endpoint.execute!
+                                                              .query
                                                     : "Internal"
                                                 : ""
                                         }
@@ -496,6 +551,13 @@ export default (_: RouteSectionProps) => {
                             </div>
                         </details>
                     </form>
+
+                    <div classList={{ hidden: !get_raw_schema_mode() }}>
+                        <RawSchema
+                            schema={[get_raw_schema, set_raw_schema]}
+                        ></RawSchema>
+                    </div>
+
                     <div class="flex gap-2 [&_button]:rounded-xl [&_button]:hover:shadow">
                         <button
                             id="delete_endpoint"
@@ -521,6 +583,29 @@ export default (_: RouteSectionProps) => {
                         >
                             {endpoint_by_file() ? "Update" : "Create endpoint"}
                         </button>
+                        <div
+                            class="py-2 btn btn-ghost bg-base-200 border border-base-300 rounded-2xl flex items-baseline-last gap-2"
+                            onClick={(_) => {
+                                set_raw_schema_mode(!get_raw_schema_mode());
+                            }}
+                        >
+                            <span
+                                class="text-xs text-blue-900 dark:text-blue-500 font-semibold self-center"
+                                classList={{
+                                    "text-red-500!": get_raw_schema_mode(),
+                                }}
+                            >
+                                {get_raw_schema_mode()
+                                    ? "Raw schema"
+                                    : "Fields input"}
+                            </span>
+                            <input
+                                id="table-mode"
+                                type="checkbox"
+                                class="toggle"
+                                checked={get_raw_schema_mode()}
+                            />
+                        </div>
                     </div>
                 </Show>
             </div>

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
 import AppCx from "@admin/AppCx";
-import { fetcher, type TestByFile } from "@admin/tests";
+import { type TestByFile } from "@admin/tests";
 
 import AlertBox, { type AlertStruct } from "@admin/components/AlertContainer";
 import Modal from "@admin/components/Modal";
@@ -12,7 +12,6 @@ import { SortableColumnCell } from "@admin/components/List";
 import {
     children,
     createEffect,
-    createResource,
     createSignal,
     Index,
     on,
@@ -208,7 +207,7 @@ export default (props: RouteSectionProps) => {
                                             class="table-row border-b border-b-base-300 [&_span]:text-xs [&_span]:lg:text-sm [&_div]:size-auto [&_div]:p-2 [&_div]:align-middle"
                                             onClick={() =>
                                                 navigate(
-                                                    `/tests/${test().test.name}`,
+                                                    `/tests/${encodeURIComponent(test().test.name!)}`,
                                                     {
                                                         replace: false,
                                                         scroll: false,

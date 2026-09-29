@@ -3,13 +3,14 @@
 
 import AppCx from "@admin/AppCx";
 
-import { type Test } from "@admin/tests";
+import { type Test, type TestByFile } from "@admin/tests";
 
 import { current_component } from "@admin/Admin";
 
-import { normalize_route } from "@admin/endpoints";
+import { normalize_route, type EndpointByFile } from "@admin/endpoints";
 
 import AlertBox, { type AlertStruct } from "@admin/components/AlertContainer";
+import RawSchema from "@admin/components/RawSchema";
 import { confirm_btn } from "@admin/components/ConfirmButton";
 
 import {
@@ -31,7 +32,7 @@ import {
     type RouteSectionProps,
 } from "@solidjs/router";
 
-import { pipe, map, fromEntries, join, entries } from "remeda";
+import { pipe, map, fromEntries, join, entries, filter } from "remeda";
 
 import { loadGrammar } from "@arborium/arborium";
 
@@ -81,8 +82,53 @@ export default (_: RouteSectionProps) => {
     const [id, set_id] = createSignal(useParams()["id"]);
 
     const [name, _set_name] = createSignal(
-        useParams()["name"]?.replaceAll("%20", " "),
+        useParams()["name"]
+            ? decodeURIComponent(useParams()["name"]!)
+            : undefined,
     );
+
+    // Raw schema mode.
+    const [get_raw_schema_mode, set_raw_schema_mode] =
+        createSignal<boolean>(false);
+
+    // Raw schema.
+    const [get_raw_schema, set_raw_schema] = createSignal<string | undefined>(
+        undefined,
+    );
+
+    // Route field.
+    const [get_route_search, set_route_search] = createSignal<
+        string | undefined
+    >(undefined);
+
+    // Rendered filtered endpoints list.
+    const [filtered_endpoints_list, set_filtered_endpoints_list] = createSignal<
+        Array<EndpointByFile>
+    >(new Array());
+
+    createEffect(() => {
+        if (endpoints() !== undefined)
+            set_filtered_endpoints_list(
+                pipe(
+                    endpoints()!,
+                    filter((endpoint_by_file) => {
+                        if (get_route_search() !== undefined) {
+                            const search_term =
+                                get_route_search()!.toLowerCase();
+
+                            return (
+                                endpoint_by_file.endpoint
+                                    .id!.toLowerCase()
+                                    .includes(search_term) ||
+                                endpoint_by_file.endpoint
+                                    .route!.toLowerCase()
+                                    .includes(search_term)
+                            );
+                        } else return true;
+                    }),
+                ),
+            );
+    });
 
     let name_element: HTMLInputElement | undefined = undefined;
     let description_element: HTMLInputElement | undefined = undefined;
@@ -101,6 +147,21 @@ export default (_: RouteSectionProps) => {
             if (!test_by_file) break check;
 
             set_id(test_by_file.test.target_endpoint_id);
+
+            if (get_raw_schema()) {
+                try {
+                    return {
+                        test: {
+                            ...test_by_file!.test,
+                            ...(JSON.parse(get_raw_schema() ?? "") as Test),
+                        },
+                    } as TestByFile;
+                } catch {
+                    console.log(
+                        "Cannot deserialize the raw schema. Falling back to original definition.",
+                    );
+                }
+            }
 
             if (test_by_file.test["response"] !== undefined)
                 set_response(test_by_file.test["response"]);
@@ -175,17 +236,28 @@ export default (_: RouteSectionProps) => {
     });
 
     const extractors = {
-        route_params: () =>
-            pipe(
-                Array.from(route_params_element!.children),
+        route_params: () => {
+            return pipe(
+                Array.from(
+                    route_params_element !== undefined
+                        ? (route_params_element! as HTMLFieldSetElement)
+                              .children
+                        : [],
+                ),
                 map((element) => {
                     const input = element.querySelector("input")!;
                     return [input.name, input.value];
                 }),
-            ),
+            );
+        },
         query_params: () =>
             pipe(
-                Array.from(query_params_element!.children),
+                Array.from(
+                    query_params_element !== undefined
+                        ? (query_params_element! as HTMLFieldSetElement)
+                              .children
+                        : [],
+                ),
                 map((element) => {
                     const field_name = element.getElementsByClassName(
                         "field_name",
@@ -198,6 +270,54 @@ export default (_: RouteSectionProps) => {
                 }),
             ),
         body: () => req_body_element!.value,
+    };
+
+    const serialize_fields = () => {
+        const req_name =
+            name_element!.value !== name() && name_element!.value.length !== 0
+                ? name_element!.value
+                : name();
+
+        const req_description =
+            description_element!.value !== test_by_file()?.test.description
+                ? description_element!.value
+                : undefined;
+
+        // Extract all test's params.
+        const route_params = Object.fromEntries(extractors.route_params());
+        const query_params = Object.fromEntries(extractors.query_params());
+        const body = (() => {
+            try {
+                return JSON.parse(extractors.body());
+            } catch (err) {
+                set_alert({ value: (err as Error).message, is_error: true });
+                return undefined;
+            }
+        })();
+
+        const req = {
+            name: req_name,
+            target_endpoint_id: id(),
+            description: req_description,
+            route_params,
+            query_params,
+            body,
+            response: response(),
+        } as Test;
+
+        for (const field in req) {
+            if (field === "description") continue;
+
+            const value = req[field as keyof Test];
+
+            if (
+                value === undefined ||
+                (!Array.isArray(value) && (value as string).length === 0)
+            )
+                delete req[field as keyof Test];
+        }
+
+        return req;
     };
 
     const send_req = async () => {
@@ -274,49 +394,7 @@ export default (_: RouteSectionProps) => {
     };
 
     const save_test = async () => {
-        const req_name =
-            name_element!.value !== name() && name_element!.value.length !== 0
-                ? name_element!.value
-                : name();
-
-        const req_description =
-            description_element!.value !== test_by_file()?.test.description
-                ? description_element!.value
-                : undefined;
-
-        // Extract all test's params.
-        const route_params = Object.fromEntries(extractors.route_params());
-        const query_params = Object.fromEntries(extractors.query_params());
-        const body = (() => {
-            try {
-                return JSON.parse(extractors.body());
-            } catch (err) {
-                set_alert({ value: (err as Error).message, is_error: true });
-                return undefined;
-            }
-        })();
-
-        const req = {
-            name: req_name,
-            target_endpoint_id: id(),
-            description: req_description,
-            route_params,
-            query_params,
-            body,
-            response: response(),
-        } as Test;
-
-        for (const field in req) {
-            if (field === "description") continue;
-
-            const value = req[field as keyof Test];
-
-            if (
-                value === undefined ||
-                (!Array.isArray(value) && (value as string).length === 0)
-            )
-                delete req[field as keyof Test];
-        }
+        const req = serialize_fields();
 
         const res = await fetch(
             `/api/internal/admin/tests/${test_by_file() ? test_by_file()?.test.name : ""}`,
@@ -328,15 +406,15 @@ export default (_: RouteSectionProps) => {
 
         if (!res.ok) {
             set_alert({
-                value: body["error"] ?? "Unknown error.",
+                value: req["body"]["error"] ?? "Unknown error.",
                 is_error: true,
             });
         }
 
         refetch();
 
-        if (req_name !== name())
-            navigate(`/tests/${req_name}`, {
+        if (req["name"] !== name())
+            navigate(`/tests/${req["name"]}`, {
                 replace: false,
                 scroll: false,
             });
@@ -398,10 +476,14 @@ export default (_: RouteSectionProps) => {
     });
 
     createEffect(() => {
-        if (endpoint_by_file() !== undefined)
+        if (endpoint_by_file() !== undefined) {
+            if (!get_raw_schema_mode())
+                set_raw_schema(JSON.stringify(serialize_fields(), null, "\t"));
+
             set_alert({
                 value: `Help: test the endpoint ${id()} on this page, make sure to fill the request's parameters and body as required. Note that the current endpoint ${endpoint_by_file()?.endpoint.require_auth ? "requires authentication" : "doesn't require authentication."}`,
             });
+        }
     });
 
     return (
@@ -449,8 +531,19 @@ export default (_: RouteSectionProps) => {
                         <form
                             id="form"
                             class="[&_span]:mb-1"
+                            classList={{
+                                hidden: get_raw_schema_mode(),
+                            }}
                             onInput={(event) => {
                                 if (get_alert()?.is_error) set_alert(undefined);
+
+                                set_raw_schema(
+                                    JSON.stringify(
+                                        serialize_fields(),
+                                        null,
+                                        "\t",
+                                    ),
+                                );
 
                                 let form = event.currentTarget;
                                 let submit = document.getElementById("submit");
@@ -490,11 +583,30 @@ export default (_: RouteSectionProps) => {
 
                                         dropdown.togglePopover();
                                     }}
-                                    readOnly
+                                    onInput={(event) =>
+                                        set_route_search(
+                                            event.currentTarget.value ??
+                                                undefined,
+                                        )
+                                    }
+                                    onFocus={(event) => {
+                                        event.currentTarget.value = "";
+                                        set_route_search(undefined);
+                                    }}
+                                    onFocusOut={(event) => {
+                                        // Restore the current route.
+                                        event.currentTarget.value =
+                                            normalize_route(
+                                                endpoint_by_file()!.endpoint
+                                                    .route,
+                                                endpoint_by_file()!.endpoint
+                                                    .version,
+                                            );
+                                    }}
                                 />
                                 <ul
                                     id={`endpoint-selector-dropdown`}
-                                    class="dropdown menu lg:min-w-1/2 w-max max-w-screen not-lg:m-0! h-1/2 rounded-box bg-base-200/25 border-base-300 overflow-y-scroll overscroll-none border backdrop-blur-sm backdrop-brightness-110 shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
+                                    class="dropdown menu lg:min-w-1/2 w-max max-w-screen not-lg:m-0! max-h-1/2 empty:hidden rounded-box bg-base-200/25 border-base-300 overflow-y-scroll overscroll-none border backdrop-blur-sm backdrop-brightness-110 shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
                                     style={`position-anchor:--endpoint-selector; inset: auto; align-self: anchor-center; justify-self: anchor-center; margin: 0.5rem;`}
                                     onClick={(event) =>
                                         (
@@ -503,7 +615,7 @@ export default (_: RouteSectionProps) => {
                                     }
                                     popover
                                 >
-                                    <Index each={endpoints()}>
+                                    <Index each={filtered_endpoints_list()}>
                                         {(endpoint_by_file, _) => (
                                             <li>
                                                 <button
@@ -762,9 +874,14 @@ export default (_: RouteSectionProps) => {
                                 </label>
                             </Show>
                         </form>
+                        <div classList={{ hidden: !get_raw_schema_mode() }}>
+                            <RawSchema
+                                schema={[get_raw_schema, set_raw_schema]}
+                            ></RawSchema>
+                        </div>
                         <div class="flex gap-1 my-2 text-xs font-bold">
                             <span>Authorization header: </span>
-                            <div class="font-mono">
+                            <div class="font-mono break-all">
                                 {authorization() !== undefined ? (
                                     <span class="text-green-500">
                                         {authorization()!}
@@ -774,12 +891,13 @@ export default (_: RouteSectionProps) => {
                                 )}
                             </div>
                         </div>
+
                         <Show when={should_show_test()}>
                             <div class="flex gap-2 [&_button]:rounded-xl [&_button]:hover:shadow">
                                 <button
                                     id="submit"
                                     type="submit"
-                                    class="btn text-black btn-success"
+                                    class="btn hover:text-black hover:btn-success"
                                     classList={{
                                         "btn-disabled":
                                             test_by_file() === undefined &&
@@ -790,6 +908,32 @@ export default (_: RouteSectionProps) => {
                                 >
                                     Send
                                 </button>
+                                <div
+                                    class="py-2 btn btn-ghost bg-base-200 border border-base-300 rounded-2xl flex items-baseline-last gap-2"
+                                    onClick={(_) => {
+                                        set_raw_schema_mode(
+                                            !get_raw_schema_mode(),
+                                        );
+                                    }}
+                                >
+                                    <span
+                                        class="text-xs text-blue-900 dark:text-blue-500 font-semibold self-center"
+                                        classList={{
+                                            "text-red-500!":
+                                                get_raw_schema_mode(),
+                                        }}
+                                    >
+                                        {get_raw_schema_mode()
+                                            ? "Raw schema"
+                                            : "Fields input"}
+                                    </span>
+                                    <input
+                                        id="table-mode"
+                                        type="checkbox"
+                                        class="toggle"
+                                        checked={get_raw_schema_mode()}
+                                    />
+                                </div>
                                 <div class="flex gap-2 ml-auto">
                                     <button
                                         class="btn btn-active hover:text-white hover:bg-red-600"
@@ -816,7 +960,7 @@ export default (_: RouteSectionProps) => {
                     </div>
 
                     <div
-                        class="flex flex-col basis-auto min-w-2/3 min-h-full gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-box lg:mx-6 not-lg:my-4 p-4 transition-all transition-discrete ease-in-out duration-500"
+                        class="flex flex-col basis-auto min-w-1/3 min-h-full gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-box lg:mx-6 not-lg:my-4 p-4 transition-all transition-discrete ease-in-out duration-500"
                         classList={{
                             "invisible opacity-0 lg:min-w-0! not-lg:min-h-0! w-0! h-0! mx-0! my-0! p-0! basis-auto! *:opacity-0 overflow-hidden pointer-events-none":
                                 response() === undefined,
