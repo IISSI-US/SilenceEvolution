@@ -143,14 +143,34 @@ async fn try_main() -> Result<ResultContext> {
                             None => None,
                         };
 
-                    if let Some(internal_db_name) = &internal_db_name {
-                        let config = _app_cx.config().read().await;
+                    {
+                        let db_conn_config =
+                            match _app_cx.config().read().await.databases_conn().internal() {
+                                Some(_db_conn_config) => MySQLDbConnectionConfig::new(
+                                    _db_conn_config.host().to_owned(),
+                                    _db_conn_config.username().to_owned(),
+                                    _db_conn_config.password().to_owned(),
+                                    "".into(),
+                                ),
+                                None => {
+                                    let _db_conn_config = _app_cx
+                                        .config()
+                                        .read()
+                                        .await
+                                        .databases_conn()
+                                        .main()
+                                        .to_owned();
 
-                        create_internal_db(
-                            config.databases_conn().main(),
-                            Some(internal_db_name.to_owned()),
-                        )
-                        .await?;
+                                    MySQLDbConnectionConfig::new(
+                                        _db_conn_config.host().to_owned(),
+                                        _db_conn_config.username().to_owned(),
+                                        _db_conn_config.password().to_owned(),
+                                        "".into(),
+                                    )
+                                }
+                            };
+
+                        create_internal_db(&db_conn_config, internal_db_name.to_owned()).await?;
                     }
 
                     // Load the Silence's app's database into the databases manager (`waveless_commons::databases::DatabasesConnections`).
@@ -433,14 +453,16 @@ async fn try_main() -> Result<ResultContext> {
                 None => None,
             };
 
-            if let Some(internal_db_name) = &internal_db_name {
-                let config = app_cx.config().read().await;
+            if let Some(_db_conn_config) = app_cx.config().read().await.databases_conn().internal()
+            {
+                let db_conn_config = MySQLDbConnectionConfig::new(
+                    _db_conn_config.host().to_owned(),
+                    _db_conn_config.username().to_owned(),
+                    _db_conn_config.password().to_owned(),
+                    "".into(),
+                );
 
-                create_internal_db(
-                    config.databases_conn().main(),
-                    Some(internal_db_name.to_owned()),
-                )
-                .await?;
+                create_internal_db(&db_conn_config, internal_db_name.to_owned()).await?;
             }
 
             DatabasesManager::load(app_cx.config().read().await.into_database_config()).await?;
