@@ -8,6 +8,40 @@ use crate::*;
 #[folder = "./target/frontend"]
 pub struct StaticService;
 
+/// The new admin panel (plain HTML/JS), served at `/admin2`, `/auth2` and `/_silence/*`.
+#[derive(Clone, RustEmbed, Debug)]
+#[folder = "./panel"]
+pub struct PanelFiles;
+
+/// The admin panel's styles, compiled from `panel/styles` by `build.rs`.
+#[derive(Clone, RustEmbed, Debug)]
+#[folder = "./target/panel_styles"]
+pub struct PanelStyles;
+
+/// Returns the content and mime type of a panel's file given its route.
+fn get_panel_file(route: &str) -> Option<(Vec<u8>, String)> {
+    if route.contains("..") {
+        return None;
+    }
+
+    let (route_part, path) = route.split_once('/').unwrap_or((route, ""));
+
+    let file = match route_part {
+        "admin2" => PanelFiles::get("admin.html"),
+        "auth2" => PanelFiles::get("auth.html"),
+        _ if path == "panel.css" => PanelStyles::get("panel.css"),
+        _ if path.ends_with(".scss") => None,
+        _ => PanelFiles::get(path),
+    }?;
+
+    Some((
+        file.data().to_vec(),
+        file.mime_type()
+            .map(|mime_type| mime_type.to_string())
+            .unwrap_or("application/octet-stream".to_string()),
+    ))
+}
+
 impl Service<Request<ConnBody>> for StaticService {
     type Response = Response<ConnBody>;
 
@@ -41,6 +75,17 @@ impl Service<Request<ConnBody>> for StaticService {
 
             let body = match route.split('/').next() {
                 Some(route_part) => match route_part {
+                    "admin2" | "auth2" | "_silence" => match get_panel_file(&route) {
+                        Some((content, mime_type)) => {
+                            response = response.header("Content-Type", mime_type);
+                            Some(content)
+                        }
+                        None => {
+                            response =
+                                response.header("Content-Type", "application/json; charset=utf-8");
+                            None
+                        }
+                    },
                     "admin" | "auth" | "internal_assets" => {
                         if let Some(file) = StaticService::get({
                             if route_part == "admin" {

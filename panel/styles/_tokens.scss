@@ -1,0 +1,83 @@
+// SilenceEvolution
+// Copyright (C) 2026 DEAL research group, Universidad de Sevilla
+
+// Design tokens. Colors are CSS custom properties so the theme can switch at runtime.
+
+$radius: 8px;
+$radius-sm: 5px;
+$sidebar-width: 220px;
+$drawer-width: min(640px, 100vw);
+$font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+
+$breakpoint-narrow: 860px;
+
+@mixin light-theme {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #f0f2f5;
+    --border: #dfe3e8;
+    --border-strong: #c5ccd5;
+    --text: #1b2330;
+    --text-muted: #5d6878;
+    --accent: #2f5bd3;
+    --accent-hover: #2449ad;
+    --accent-soft: #e6ecfb;
+    --on-accent: #ffffff;
+    --danger: #c23434;
+    --danger-soft: #fbe9e9;
+    --success: #1f7a4d;
+    --success-soft: #e3f4ea;
+    --warning: #9a6200;
+    --warning-soft: #fdf1dc;
+    --code-bg: #f3f5f8;
+    --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 8px 24px rgb(16 24 40 / 8%);
+
+    --m-get: #1f7a4d;
+    --m-post: #2f5bd3;
+    --m-put: #9a6200;
+    --m-delete: #c23434;
+
+    --hl-keyword: #7a3cc4;
+    --hl-string: #1f7a4d;
+    --hl-number: #b4530f;
+    --hl-param: #2f5bd3;
+    --hl-internal: #c23434;
+    --hl-comment: #8a94a3;
+    --hl-key: #1b4fa0;
+}
+
+@mixin dark-theme {
+    --bg: #11151b;
+    --surface: #181d25;
+    --surface-2: #1f2530;
+    --border: #2b3340;
+    --border-strong: #3a4454;
+    --text: #e6eaf0;
+    --text-muted: #9aa5b5;
+    --accent: #7c9cf5;
+    --accent-hover: #9bb4fa;
+    --accent-soft: #232d45;
+    --on-accent: #0d1220;
+    --danger: #f07a7a;
+    --danger-soft: #3a1f22;
+    --success: #5fcf95;
+    --success-soft: #19302a;
+    --warning: #f1b54f;
+    --warning-soft: #352a17;
+    --code-bg: #141920;
+    --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 35%);
+
+    --m-get: #5fcf95;
+    --m-post: #7c9cf5;
+    --m-put: #f1b54f;
+    --m-delete: #f07a7a;
+
+    --hl-keyword: #c79bff;
+    --hl-string: #8fd8a8;
+    --hl-number: #f3a96b;
+    --hl-param: #8fb0ff;
+    --hl-internal: #ff8c8c;
+    --hl-comment: #6c7686;
+    --hl-key: #9ec1ff;
+}

@@ -103,6 +103,9 @@ thiserror = "2.0.18"
 derive_builder = "0.20"
 derive_more = { version = "2.0", features = ["constructor", "display"] }
 
+[build-dependencies]
+grass = { version = "0.13.4", default-features = false }
+
 [profile.dev.package."*"]
 debug = false
 codegen-units = 256

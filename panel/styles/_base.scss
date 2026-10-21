@@ -1,0 +1,104 @@
+// SilenceEvolution
+// Copyright (C) 2026 DEAL research group, Universidad de Sevilla
+
+@use "tokens" as *;
+
+:root {
+    @include light-theme;
+    color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        @include dark-theme;
+        color-scheme: dark;
+    }
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: $font-sans;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+    margin: 0;
+    line-height: 1.25;
+    font-weight: 650;
+}
+
+h1 {
+    font-size: 1.35rem;
+}
+
+h2 {
+    font-size: 1.05rem;
+}
+
+h3 {
+    font-size: 0.9rem;
+}
+
+p {
+    margin: 0;
+}
+
+a {
+    color: var(--accent);
+    text-decoration: none;
+
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+code,
+pre,
+kbd,
+textarea.code {
+    font-family: $font-mono;
+    font-size: 12.5px;
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+.muted {
+    color: var(--text-muted);
+}
+
+.mono {
+    font-family: $font-mono;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
