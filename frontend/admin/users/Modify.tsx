@@ -148,7 +148,7 @@ export default (_: RouteSectionProps) => {
                         } else submit?.classList.add("btn-disabled");
                     }}
                 >
-                    <fieldset class="fieldset [&_.input]:w-full lg:grid-cols-2 gap-3">
+                    <fieldset class="fieldset [&_.input]:w-full md:grid-cols-2 gap-3">
                         <label>
                             <span class="label">Name</span>
                             <input

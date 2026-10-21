@@ -10,6 +10,13 @@ import { A } from "@solidjs/router";
 export default () => {
     const context = useContext(Context);
 
+    let form: HTMLFormElement | undefined = undefined;
+
+    let password: HTMLInputElement | undefined = undefined;
+    let verify_password: HTMLInputElement | undefined = undefined;
+
+    let submit: HTMLInputElement | undefined = undefined;
+
     if (!context) throw new Error("Can't find auth's context");
 
     context.set_title("Sign up");
@@ -39,35 +46,28 @@ export default () => {
             <form
                 class="[&_span]:mb-1"
                 onSubmit={submit_signup}
-                onInput={(event) => {
+                onInput={(_) => {
                     context.set_error(undefined);
 
-                    let form = event.currentTarget;
-
-                    let submit = document.getElementById("submit");
-
-                    if (form.checkValidity()) {
-                        submit?.classList.remove("btn-disabled");
-                    } else submit?.classList.add("btn-disabled");
-                }}
-                onChange={(_) => {
-                    let password = document.getElementById(
-                        "password",
-                    )! as HTMLInputElement;
-                    let password_check = document.getElementById(
-                        "password_check",
-                    )! as HTMLInputElement;
-
                     // Check whether `password` and `password_check` fields match.
-                    if (password.value !== password_check.value) {
-                        password_check.setCustomValidity(
+                    if (password!.value === verify_password!.value) {
+                        verify_password!.setCustomValidity("");
+                    }
+
+                    if (form!.checkValidity()) {
+                        submit!.classList.remove("btn-disabled");
+                    } else submit!.classList.add("btn-disabled");
+                }}
+                onChange={() => {
+                    // Check whether `password` and `password_check` fields match.
+                    if (password!.value !== verify_password!.value) {
+                        verify_password!.setCustomValidity(
                             "Passwords do not match.",
                         );
-                        password_check.reportValidity();
-                    } else {
-                        password_check.setCustomValidity("");
+                        verify_password!.reportValidity();
                     }
                 }}
+                ref={form}
             >
                 <fieldset class="fieldset">
                     <label>
@@ -105,6 +105,7 @@ export default () => {
                             placeholder="Password"
                             minLength="4"
                             required
+                            ref={password}
                         />
                         <p class="text-error pt-1 hidden peer-not-placeholder-shown:peer-invalid:peer-focus:block">
                             Password must have 4 characters or more.
@@ -114,12 +115,13 @@ export default () => {
                     <label>
                         <span class="label">Confirm password</span>
                         <input
-                            id="password_check"
-                            name="password_check"
+                            id="verify_password"
+                            name="verify_password"
                             type="password"
                             class="input peer validator"
                             placeholder="Retype your password"
                             required
+                            ref={verify_password}
                         />
                         <p class="text-error pt-1 hidden peer-not-placeholder-shown:peer-invalid:peer-focus:block">
                             Passwords do not match.
@@ -131,6 +133,7 @@ export default () => {
                         type="submit"
                         class="btn btn-neutral btn-disabled mt-4 submit hover:shadow-xl"
                         value="Sign up"
+                        ref={submit}
                     />
                 </fieldset>
             </form>

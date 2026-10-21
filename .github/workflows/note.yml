@@ -25,6 +25,6 @@ jobs:
 
                   CURRENT_BODY=$(gh release view "$TAG" --json body --jq .body)
 
-                  NOTE="> **⚠️ Warning**\n> Make sure you use the **shell** (**curl**) script on a supported shell, usually in **Linux** or **macOS** and the **Powershell** script on **Windows**!\n\n"
+                  NOTE="### **⚠️ Warning**: Make sure to use the **shell** (**curl**) script on a supported shell, usually in **Linux** or **macOS** and the **Powershell** script on **Windows**!"
 
                   gh release edit "$TAG" --notes "${NOTE}${CURRENT_BODY}"

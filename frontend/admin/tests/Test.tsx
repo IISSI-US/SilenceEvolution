@@ -526,7 +526,7 @@ export default (_: RouteSectionProps) => {
                     hide_timeout={!get_alert()?.is_error ? 5000 : undefined}
                 ></AlertBox>
 
-                <div class="lg:flex lg:flex-row">
+                <div class="md:flex md:flex-row">
                     <div class="lg:basis-full">
                         <form
                             id="form"
@@ -606,7 +606,7 @@ export default (_: RouteSectionProps) => {
                                 />
                                 <ul
                                     id={`endpoint-selector-dropdown`}
-                                    class="dropdown menu lg:min-w-1/2 w-max max-w-screen not-lg:m-0! max-h-1/2 empty:hidden rounded-box bg-base-200/25 border-base-300 overflow-y-scroll overscroll-none border backdrop-blur-sm backdrop-brightness-110 shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
+                                    class="dropdown menu md:min-w-1/2 w-max max-w-screen not-md:m-0! max-h-1/2 empty:hidden rounded-box bg-base-200/25 border-base-300 overflow-y-scroll overscroll-none border backdrop-blur-sm backdrop-brightness-110 shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
                                     style={`position-anchor:--endpoint-selector; inset: auto; align-self: anchor-center; justify-self: anchor-center; margin: 0.5rem;`}
                                     onClick={(event) =>
                                         (
@@ -628,7 +628,7 @@ export default (_: RouteSectionProps) => {
                                                     }}
                                                     tabIndex="1"
                                                 >
-                                                    <div class="flex not-lg:flex-col lg:gap-2">
+                                                    <div class="flex not-md:flex-col md:gap-2">
                                                         <span class="font-bold">
                                                             {
                                                                 endpoint_by_file()
@@ -668,7 +668,7 @@ export default (_: RouteSectionProps) => {
                                     </summary>
                                     <div class="collapse-content">
                                         <fieldset
-                                            class="fieldset [&_.input]:w-full lg:grid-cols-3 gap-3"
+                                            class="fieldset [&_.input]:w-full md:grid-cols-3 gap-3"
                                             ref={route_params_element}
                                         >
                                             <Index
@@ -719,7 +719,7 @@ export default (_: RouteSectionProps) => {
                                     <div class="collapse-content">
                                         <fieldset
                                             id="query_params"
-                                            class="fieldset [&_.input]:w-full lg:grid-cols-3 gap-3 empty:hidden"
+                                            class="fieldset [&_.input]:w-full md:grid-cols-3 gap-3 empty:hidden"
                                             ref={query_params_element}
                                         >
                                             <Index
@@ -792,10 +792,10 @@ export default (_: RouteSectionProps) => {
                                                 );
                                             }}
                                         >
-                                            <span class="material-symbols-outlined lg:hidden!">
+                                            <span class="material-symbols-outlined md:hidden!">
                                                 add
                                             </span>
-                                            <span class="not-lg:hidden">
+                                            <span class="not-md:hidden">
                                                 Add query param
                                             </span>
                                         </div>
@@ -960,9 +960,9 @@ export default (_: RouteSectionProps) => {
                     </div>
 
                     <div
-                        class="flex flex-col basis-auto min-w-1/3 min-h-full gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-box lg:mx-6 not-lg:my-4 p-4 transition-all transition-discrete ease-in-out duration-500"
+                        class="flex flex-col basis-auto min-w-1/3 min-h-full gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-box md:mx-6 not-md:my-4 p-4 transition-all transition-discrete ease-in-out duration-500"
                         classList={{
-                            "invisible opacity-0 lg:min-w-0! not-lg:min-h-0! w-0! h-0! mx-0! my-0! p-0! basis-auto! *:opacity-0 overflow-hidden pointer-events-none":
+                            "invisible opacity-0 md:min-w-0! not-md:min-h-0! w-0! h-0! mx-0! my-0! p-0! basis-auto! *:opacity-0 overflow-hidden pointer-events-none":
                                 response() === undefined,
                         }}
                     >

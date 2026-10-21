@@ -106,7 +106,7 @@ export default (props: RouteSectionProps) => {
         <>
             <div>
                 <div class="flex flex-col gap-3 pb-3 items-center w-full">
-                    <div class="flex not-lg:flex-col not-lg:gap-3 items-center w-full">
+                    <div class="flex not-md:flex-col not-md:gap-3 items-center w-full">
                         <h1 class="text-4xl font-bold">Tests</h1>
                         <div class="flex gap-2 self-end text-right ml-auto items-center *:rounded-2xl">
                             <SearchButton
@@ -124,10 +124,10 @@ export default (props: RouteSectionProps) => {
                                 class="btn text-sm self-end text-right ml-auto"
                                 href="/tests/new"
                             >
-                                <span class="material-symbols-outlined lg:hidden!">
+                                <span class="material-symbols-outlined md:hidden!">
                                     add
                                 </span>
-                                <span class="not-lg:hidden">
+                                <span class="not-md:hidden">
                                     Create new test
                                 </span>
                             </A>
@@ -204,7 +204,7 @@ export default (props: RouteSectionProps) => {
                                 >
                                     {(test, ix) => (
                                         <div
-                                            class="table-row border-b border-b-base-300 [&_span]:text-xs [&_span]:lg:text-sm [&_div]:size-auto [&_div]:p-2 [&_div]:align-middle"
+                                            class="table-row border-b border-b-base-300 [&_span]:text-xs [&_span]:md:text-sm [&_div]:size-auto [&_div]:p-2 [&_div]:align-middle"
                                             onClick={() =>
                                                 navigate(
                                                     `/tests/${encodeURIComponent(test().test.name!)}`,

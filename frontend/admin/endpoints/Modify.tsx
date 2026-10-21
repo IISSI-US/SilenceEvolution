@@ -275,7 +275,7 @@ export default (_: RouteSectionProps) => {
                             } else submit?.classList.add("btn-disabled");
                         }}
                     >
-                        <fieldset class="fieldset [&_.input]:w-full lg:grid-cols-2 gap-3">
+                        <fieldset class="fieldset [&_.input]:w-full md:grid-cols-2 gap-3">
                             <label>
                                 <span class="label">ID</span>
                                 <input
@@ -407,7 +407,7 @@ export default (_: RouteSectionProps) => {
                                 Extras
                             </summary>
                             <div class="collapse-content">
-                                <fieldset class="fieldset [&_.input]:w-full lg:grid-cols-3 gap-3">
+                                <fieldset class="fieldset [&_.input]:w-full md:grid-cols-3 gap-3">
                                     <label>
                                         <span class="label">Version</span>
                                         <input
@@ -512,7 +512,7 @@ export default (_: RouteSectionProps) => {
                                     </label>
                                 </fieldset>
 
-                                <fieldset class="fieldset [&_.input]:w-full text-sm lg:grid-cols-3 gap-3 my-1">
+                                <fieldset class="fieldset [&_.input]:w-full text-sm md:grid-cols-3 gap-3 my-1">
                                     <label class="align-middle">
                                         <span class="label mr-2">
                                             Requires auth

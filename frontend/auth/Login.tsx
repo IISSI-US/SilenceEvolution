@@ -10,6 +10,10 @@ import { A } from "@solidjs/router";
 export default () => {
     const context = useContext(Context);
 
+    let form: HTMLFormElement | undefined = undefined;
+
+    let submit: HTMLInputElement | undefined = undefined;
+
     if (!context) throw new Error("Can't find auth's context");
 
     context.set_title("Login");
@@ -38,16 +42,14 @@ export default () => {
             <form
                 class="[&_span]:mb-1"
                 onSubmit={submit_login}
-                onInput={(event) => {
+                onInput={(_) => {
                     context.set_error(undefined);
 
-                    let form = event.currentTarget;
-                    let submit = document.getElementById("submit");
-
-                    if (form.checkValidity()) {
-                        submit?.classList.remove("btn-disabled");
-                    } else submit?.classList.add("btn-disabled");
+                    if (form!.checkValidity()) {
+                        submit!.classList.remove("btn-disabled");
+                    } else submit!.classList.add("btn-disabled");
                 }}
+                ref={form}
             >
                 <fieldset class="fieldset">
                     <label>
@@ -84,6 +86,7 @@ export default () => {
                         type="submit"
                         class="btn btn-neutral btn-disabled mt-4 hover:shadow-xl"
                         value="Login"
+                        ref={submit}
                     />
                 </fieldset>
             </form>
