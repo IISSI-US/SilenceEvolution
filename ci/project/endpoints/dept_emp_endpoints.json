@@ -1,0 +1,33 @@
+[
+  {
+    "id": "employeesByDepartment",
+    "database": "main",
+    "route": "departments/{departmentId}/employees",
+    "version": "v1",
+    "method": "get",
+    "description": "Employees of a department (path param).",
+    "execute": { "queries": [ { "query": "SELECT * FROM employees WHERE departmentId = {departmentId} ORDER BY employeeId" } ] }
+  },
+  {
+    "id": "searchEmployees",
+    "database": "main",
+    "route": "employees/search",
+    "version": "v1",
+    "method": "get",
+    "query_params": ["minSalary"],
+    "description": "Employees earning at least `minSalary` (query param).",
+    "execute": { "queries": [ { "query": "SELECT employeeId, firstName, lastName, salary FROM employees WHERE salary >= {minSalary} ORDER BY salary DESC, employeeId" } ] }
+  },
+  {
+    "id": "raiseSalaries",
+    "database": "main",
+    "route": "departments/{departmentId}/raise",
+    "version": "v1",
+    "method": "post",
+    "body_params": ["percentage"],
+    "description": "Raises the salary of every employee in a department (admin only).",
+    "require_auth": true,
+    "allowed_roles": ["admin"],
+    "execute": { "queries": [ { "include": false, "query": "UPDATE employees SET salary = salary * (1 + {percentage} / 100) WHERE departmentId = {departmentId}" } ] }
+  }
+]

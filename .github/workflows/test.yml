@@ -1,0 +1,80 @@
+# SilenceEvolution
+# Copyright (C) 2026 DEAL research group, Universidad de Sevilla
+#
+# Integration tests: builds Silence and runs ci/run_tests.sh against a MariaDB service.
+# This workflow never publishes anything.
+
+name: Integration tests
+
+on:
+  push:
+    branches: ["**"] # branches only: tag pushes do not trigger this workflow
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Integration tests (MariaDB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_USER: iissi_user
+          MARIADB_PASSWORD: iissi$user
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_USER: iissi_user
+      DB_PASSWORD: iissi$user
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Grant iissi_user privileges on databases ending in `db`
+        run: |
+          docker exec ${{ job.services.mariadb.id }} \
+            mariadb -uroot -proot -e "GRANT ALL PRIVILEGES ON \`%db\`.* TO 'iissi_user'@'%'; FLUSH PRIVILEGES;"
+
+      - name: Install test tools
+        run: |
+          command -v jq >/dev/null && command -v curl >/dev/null || { sudo apt-get update && sudo apt-get install -y jq curl; }
+          command -v mariadb >/dev/null || command -v mysql >/dev/null || { sudo apt-get update && sudo apt-get install -y mariadb-client; }
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Build
+        run: cargo build
+
+      - name: Run integration tests
+        run: bash ci/run_tests.sh target/debug/silence

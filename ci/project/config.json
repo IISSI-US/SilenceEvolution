@@ -1,0 +1,23 @@
+{
+  "listening_addr": "127.0.0.1:18080",
+  "serve_static_files": true,
+  "internal_params": {
+    "users_target_table": "silence_users",
+    "sessions_target_table": "silence_sessions",
+    "roles_target_table": "silence_roles"
+  },
+  "databases_conn": {
+    "main": {
+      "host": "127.0.0.1:3306",
+      "username": "iissi_user",
+      "password": "iissi$user",
+      "db": "silence_ci_db"
+    },
+    "internal": {
+      "host": "127.0.0.1:3306",
+      "username": "iissi_user",
+      "password": "iissi$user",
+      "db": "silence_ci_internal_db"
+    }
+  }
+}

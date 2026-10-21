@@ -1,0 +1,23 @@
+[
+  {
+    "id": "loggedId",
+    "database": "main",
+    "route": "employees/logged",
+    "version": "v1",
+    "method": "get",
+    "description": "Ported from Silence-CI-Project ($loggedId): the employee whose email matches the logged user. |user_id| is injected by the session watchdog.",
+    "require_auth": true,
+    "execute": { "queries": [ { "behaviour": "unique", "query": "SELECT e.* FROM employees e JOIN silence_ci_internal_db.silence_users u ON (u.email = e.email) WHERE u.user_id = |user_id|" } ] }
+  },
+  {
+    "id": "loggedIdWithRestriction",
+    "database": "main",
+    "route": "employees/logged_restricted",
+    "version": "v1",
+    "method": "get",
+    "description": "Ported from Silence-CI-Project ($loggedId + allowed_roles CEO).",
+    "require_auth": true,
+    "allowed_roles": ["ceo"],
+    "execute": { "queries": [ { "behaviour": "unique", "query": "SELECT e.* FROM employees e JOIN silence_ci_internal_db.silence_users u ON (u.email = e.email) WHERE u.user_id = |user_id|" } ] }
+  }
+]
