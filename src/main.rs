@@ -370,7 +370,7 @@ async fn try_main() -> Result<ResultContext> {
                             MixedText(align: TextAlign::Left, contents: vec![
                                 MixedTextContent::new("⚡️ "),
                                 MixedTextContent::new(format!("Silence server running at {}", format_link(runtime_executor.listening_addr().unwrap().to_string()))).color(iocraft::Color::White).weight(Weight::Bold),
-                                MixedTextContent::new(format!("\nYou can access the admin panel from {}", format_link([runtime_executor.listening_addr().unwrap().to_string(), "/admin".to_string()].join("")))).color(iocraft::Color::Green),
+                                MixedTextContent::new(format!("\n🟢 You can access the admin panel from {}", format_link([runtime_executor.listening_addr().unwrap().to_string(), "/admin".to_string()].join("")))).color(iocraft::Color::Green).weight(Weight::Bold),
                             ])
                         }
                     }

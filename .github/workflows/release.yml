@@ -383,3 +383,12 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+
+  custom-note:
+    needs:
+      - plan
+      - announce
+    uses: ./.github/workflows/note.yml
+    with:
+      plan: ${{ needs.plan.outputs.val }}
+    secrets: inherit

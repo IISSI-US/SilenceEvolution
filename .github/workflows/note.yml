@@ -1,0 +1,30 @@
+name: Add release note
+
+on:
+    workflow_call:
+        inputs:
+            plan:
+                required: true
+                type: string
+
+jobs:
+    add-note:
+        runs-on: ubuntu-latest
+        env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v6
+              with:
+                  persist-credentials: false
+                  submodules: recursive
+            - name: Add additional note to release notes
+              run: |
+                  TAG=$(echo '${{ inputs.plan }}' | jq -r '.announcement_tag')
+
+                  CURRENT_BODY=$(gh release view "$TAG" --json body --jq .body)
+
+                  NOTE="> **⚠️ Warning**\n> Make sure you use the **shell** (**curl**) script on a supported shell, usually in **Linux** or **macOS** and the **Powershell** script on **Windows**!\n\n"
+
+                  gh release edit "$TAG" --notes "${NOTE}${CURRENT_BODY}"

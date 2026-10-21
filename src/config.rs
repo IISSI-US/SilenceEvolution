@@ -94,7 +94,7 @@ impl Default for DatabasesConnectionConfig {
                 SocketAddr::new("127.0.0.1".parse().unwrap(), 3306),
                 "iissi_user".to_compact_string(),
                 "iissi$user".to_compact_string(),
-                "silence".to_compact_string(),
+                "silence_db".to_compact_string(),
             )),
         }
     }

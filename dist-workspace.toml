@@ -11,6 +11,7 @@ dist-dir = "target/distribution"
 ci = "github"
 install-updater = false
 github-build-setup = "../setup_build.yml"
+post-announce-jobs = [ "./note" ]
 install-path = "CARGO_HOME"
 
 [dist.github-custom-runners]
