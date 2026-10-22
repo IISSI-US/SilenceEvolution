@@ -6,14 +6,24 @@
 // `route_params` {name: value}, `query_params` {name: value}, `body` (JSON), `response`
 // {route, status, time, body}.
 
+import { createMemo, createResource, createSignal, For, Show } from "solid-js";
+import html from "solid-js/html";
+import { A, useLocation, useNavigate, useParams } from "@solidjs/router";
+
 import { api, endpointUrl, errorMessage, query, readBody, routeParams } from "../api.js";
-import { confirmAction, h, icon, mount, toast } from "../dom.js";
+import { confirmAction, toast } from "../dom.js";
 import { codeBlock, highlightJSON } from "../highlight.js";
-import { link, refresh } from "../router.js";
-import { fetchEndpoints, methodBadge } from "./endpoints.js";
+import { Await, Field, Icon, MethodBadge, PageHeader } from "../ui.js";
+import { fetchEndpoints } from "./endpoints.js";
 
 const TOKEN_KEY = "silence.test_token";
 const NAME_PATTERN = "[A-Za-z0-9 _.\\-]+";
+
+const ORIGINS = [
+    ["user", "Project"],
+    ["generated", "Generated from the database"],
+    ["internal", "Internal"],
+];
 
 function storedToken() {
     try {
@@ -30,353 +40,240 @@ function storeToken(token) {
     } catch {}
 }
 
-async function fetchTests() {
-    const groups = (await api("GET", "/api/internal/admin/tests")) ?? [];
-    return groups.flatMap(([path, tests]) => tests.map((test) => ({ path, test })));
-}
+/** Route params are not decoded by the router. */
+function decodeParam(value) {
+    if (value === undefined) return undefined;
 
-function testList(tests, current) {
-    const files = [...new Set(tests.map((entry) => entry.path ?? ""))].sort();
-
-    return h(
-        "div",
-        { class: "card test-list" },
-        h("div", { class: "card-body", style: { paddingBottom: "12px" } }, h("a", { class: "btn primary", href: "#/tests/new", style: { width: "100%" } }, icon("plus"), "New request")),
-        h(
-            "div",
-            { class: "test-list-items" },
-            tests.length === 0 && h("p", { class: "empty" }, "No saved tests yet."),
-            files.map((file) => [
-                h("div", { class: "file-group" }, `tests/${file}`),
-                tests
-                    .filter((entry) => (entry.path ?? "") === file)
-                    .sort((a, b) => a.test.name.localeCompare(b.test.name))
-                    .map(({ test }) =>
-                        h(
-                            "a",
-                            { href: link("tests", test.name), "aria-current": test.name === current ? "page" : undefined },
-                            h("span", {}, test.name),
-                            h("small", {}, test.target_endpoint_id),
-                        ),
-                    ),
-            ]),
-        ),
-    );
-}
-
-/** Editable key/value rows for query params. Returns `{ el, get }`. */
-function queryRowsEditor(rows) {
-    const list = h("div", { class: "stack", style: { gap: "6px" } });
-    let items = rows.length ? rows.map(([key, value]) => ({ key, value })) : [];
-
-    const render = () => {
-        mount(
-            list,
-            items.map((item, ix) =>
-                h(
-                    "div",
-                    { class: "row", style: { flexWrap: "nowrap" } },
-                    h("input", { class: "input mono", placeholder: "name", value: item.key, style: { maxWidth: "200px" }, onInput: (e) => (item.key = e.target.value) }),
-                    h("input", { class: "input", placeholder: "value", value: item.value, onInput: (e) => (item.value = e.target.value) }),
-                    h(
-                        "button",
-                        {
-                            class: "btn ghost small",
-                            type: "button",
-                            "aria-label": "Remove param",
-                            onClick: () => {
-                                items.splice(ix, 1);
-                                render();
-                            },
-                        },
-                        icon("x"),
-                    ),
-                ),
-            ),
-            h(
-                "div",
-                {},
-                h(
-                    "button",
-                    {
-                        class: "btn small",
-                        type: "button",
-                        onClick: () => {
-                            items.push({ key: "", value: "" });
-                            render();
-                        },
-                    },
-                    icon("plus"),
-                    "Add query param",
-                ),
-            ),
-        );
-    };
-
-    render();
-
-    return { el: list, get: () => items.filter((item) => item.key.trim() !== "").map((item) => [item.key.trim(), item.value]) };
-}
-
-function responseView(response) {
-    if (!response) return h("p", { class: "muted" }, "Send the request to see the response here.");
-
-    const ok = response.status >= 200 && response.status < 300;
-    let body = response.body;
-
-    if (typeof body === "string") {
-        try {
-            body = JSON.parse(body);
-        } catch {}
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
     }
-
-    return h(
-        "div",
-        {},
-        h(
-            "div",
-            { class: "response-meta" },
-            h("span", { class: `badge ${ok ? "success" : "danger"}` }, String(response.status)),
-            response.duration !== undefined && h("span", {}, `${response.duration} ms`),
-            h("span", { class: "mono" }, response.route),
-            response.time && h("span", {}, response.time),
-        ),
-        body === null || body === undefined || body === ""
-            ? h("p", { class: "muted" }, "Empty response body.")
-            : codeBlock(typeof body === "string" ? document.createTextNode(body) : highlightJSON(body), "response-body"),
-    );
 }
 
-export async function view({ name, isNew = false, endpointId } = {}) {
-    const [tests, endpoints] = await Promise.all([fetchTests(), fetchEndpoints()]);
-
-    const entry = name !== undefined ? tests.find((candidate) => candidate.test.name === name) : null;
-
-    if (name !== undefined && !entry) toast(`Test \`${name}\` doesn't exist.`, "error");
-
-    const test = entry?.test ?? null;
-
-    const header = h(
-        "header",
-        { class: "page-header" },
-        h("div", {}, h("h1", {}, "Tests"), h("p", {}, "Try any endpoint and save the request as a test of your project.")),
-    );
-
-    if (!test && !isNew) {
-        return h(
-            "div",
-            {},
-            header,
-            h(
-                "div",
-                { class: "tests-layout" },
-                testList(tests, null),
-                h("div", { class: "card card-body empty" }, "Select a test, or start a new request."),
-            ),
-        );
-    }
-
-    return h("div", {}, header, h("div", { class: "tests-layout" }, testList(tests, test?.name ?? null), requestEditor({ test, path: entry?.path, endpoints, endpointId })));
+async function fetchData() {
+    const [groups, endpoints] = await Promise.all([api("GET", "/api/internal/admin/tests"), fetchEndpoints()]);
+    const tests = (groups ?? []).flatMap(([path, tests]) => tests.map((test) => ({ path, test })));
+    return { tests, endpoints };
 }
 
-function requestEditor({ test, path, endpoints, endpointId }) {
-    const state = {
-        endpointId: test?.target_endpoint_id ?? endpointId ?? endpoints.find((e) => e.origin !== "internal")?.endpoint.id ?? "",
-        routeValues: { ...(test?.route_params ?? {}) },
-        response: test?.response ?? null,
-    };
+function TestList(props) {
+    const files = createMemo(() => [...new Set(props.tests.map((entry) => entry.path ?? ""))].sort());
 
-    const currentEndpoint = () => endpoints.find((entry) => entry.endpoint.id === state.endpointId)?.endpoint ?? null;
+    return html`
+        <div class="card test-list">
+            <div class="card-body" style="padding-bottom: 12px">
+                <${A} class="btn primary" href="/tests/new" style="width: 100%"><${Icon} name="plus" /> New request<//>
+            </div>
+            <div class="test-list-items">
+                <${Show} when=${() => props.tests.length === 0}><p class="empty">No saved tests yet.</p><//>
+                <${For} each=${files}>
+                    ${(file) => html`
+                        <div class="file-group">tests/${file}</div>
+                        <${For}
+                            each=${() =>
+                                props.tests.filter((entry) => (entry.path ?? "") === file).sort((a, b) => a.test.name.localeCompare(b.test.name))}
+                        >
+                            ${({ test }) => html`
+                                <a
+                                    href=${`#/tests/${encodeURIComponent(test.name)}`}
+                                    aria-current=${() => (test.name === props.current ? "page" : undefined)}
+                                >
+                                    <span>${test.name}</span>
+                                    <small>${test.target_endpoint_id}</small>
+                                </a>
+                            `}
+                        <//>
+                    `}
+                <//>
+            </div>
+        </div>
+    `;
+}
 
-    // Endpoint selector, grouped by origin.
-    const select = h(
-        "select",
-        { class: "select", "aria-label": "Endpoint" },
-        [
-            ["user", "Project"],
-            ["generated", "Generated from the database"],
-            ["internal", "Internal"],
-        ].map(([origin, label]) =>
-            h(
-                "optgroup",
-                { label },
-                endpoints
-                    .filter((entry) => entry.origin === origin)
-                    .sort((a, b) => endpointUrl(a.endpoint).localeCompare(endpointUrl(b.endpoint)))
-                    .map(({ endpoint }) =>
-                        h("option", { value: endpoint.id, selected: endpoint.id === state.endpointId }, `${endpoint.method.toUpperCase().padEnd(6, " ")} ${endpointUrl(endpoint)}  ·  ${endpoint.id}`),
-                    ),
-            ),
-        ),
-    );
+function ResponseView(props) {
+    const body = () => {
+        let value = props.response.body;
 
-    const sendButton = h("button", { class: "btn primary", type: "button", onClick: () => send() }, icon("play"), "Send");
-    const urlPreview = h("div", { class: "url-preview" });
-    const routeParamsBox = h("div", { class: "param-table" });
-    const bodyArea = h("textarea", { class: "textarea code", rows: 8, spellcheck: false });
-    const bodySection = h("section", { class: "form-section" });
-    const responseBox = h("div", {});
-
-    let queryRows = queryRowsEditor(Object.entries(test?.query_params ?? {}));
-    const queryBox = h("div", {}, queryRows.el);
-
-    const tokenInput = h("input", { class: "input mono", value: storedToken(), placeholder: "No token: requests are anonymous", onInput: () => storeToken(tokenInput.value.trim()) });
-
-    const buildUrl = () => {
-        const endpoint = currentEndpoint();
-        if (!endpoint) return "";
-
-        let url = endpointUrl(endpoint);
-
-        for (const param of routeParams(endpoint.route)) {
-            url = url.replace(new RegExp(`\\{\\s*${param}\\s*\\}`), state.routeValues[param] ?? "");
+        if (typeof value === "string") {
+            try {
+                value = JSON.parse(value);
+            } catch {}
         }
 
-        return url + query(Object.fromEntries(queryRows.get()));
+        return value;
     };
 
-    const updatePreview = () => {
-        const endpoint = currentEndpoint();
-        mount(urlPreview, endpoint && methodBadge(endpoint.method), h("span", {}, buildUrl()));
-    };
+    const ok = () => props.response.status >= 200 && props.response.status < 300;
 
-    const renderEndpoint = ({ resetBody }) => {
-        const endpoint = currentEndpoint();
+    return html`
+        <div>
+            <div class="response-meta">
+                <span class=${() => `badge ${ok() ? "success" : "danger"}`}>${() => String(props.response.status)}</span>
+                <${Show} when=${() => props.response.duration !== undefined}><span>${() => `${props.response.duration} ms`}</span><//>
+                <span class="mono">${() => props.response.route}</span>
+                <${Show} when=${() => props.response.time}><span>${() => props.response.time}</span><//>
+            </div>
+            ${() => {
+                const value = body();
 
-        const params = routeParams(endpoint?.route);
+                if (value === null || value === undefined || value === "") return html`<p class="muted">Empty response body.</p>`;
 
-        mount(
-            routeParamsBox,
-            params.length === 0
-                ? h("span", { class: "muted", style: { gridColumn: "1 / -1" } }, "This route has no path params.")
-                : params.map((param) => [
-                      h("label", { for: `rp-${param}` }, `{${param}}`),
-                      h("input", {
-                          class: "input",
-                          id: `rp-${param}`,
-                          value: state.routeValues[param] ?? "",
-                          onInput: (event) => {
-                              state.routeValues[param] = event.target.value;
-                              updatePreview();
-                          },
-                      }),
-                  ]),
+                return codeBlock(typeof value === "string" ? document.createTextNode(value) : highlightJSON(value), "response-body");
+            }}
+        </div>
+    `;
+}
+
+/**
+ * Request editor. Mounted once per selected test / new request, so its state is initialized from
+ * `props.test` (null for a new request) and `props.endpointId`.
+ */
+function RequestEditor(props) {
+    const navigate = useNavigate();
+    const test = props.test;
+    const endpoints = props.endpoints;
+
+    const [endpointId, setEndpointId] = createSignal(
+        test?.target_endpoint_id ?? props.endpointId ?? endpoints.find((entry) => entry.origin !== "internal")?.endpoint.id ?? "",
+    );
+    const [routeValues, setRouteValues] = createSignal({ ...(test?.route_params ?? {}) });
+    const [queryRows, setQueryRows] = createSignal(Object.entries(test?.query_params ?? {}).map(([key, value]) => ({ key, value })));
+    const [body, setBody] = createSignal(
+        test?.body === undefined ? "" : typeof test.body === "string" ? test.body : JSON.stringify(test.body, null, 2),
+    );
+    const [token, setToken] = createSignal(storedToken());
+    const [response, setResponse] = createSignal(test?.response ?? null);
+    const [sending, setSending] = createSignal(false);
+
+    const endpoint = createMemo(() => endpoints.find((entry) => entry.endpoint.id === endpointId())?.endpoint ?? null);
+    const params = createMemo(() => routeParams(endpoint()?.route));
+    const hasBody = () => endpoint() && endpoint().method.toLowerCase() !== "get";
+
+    const queryObject = () =>
+        Object.fromEntries(
+            queryRows()
+                .filter((row) => row.key.trim() !== "")
+                .map((row) => [row.key.trim(), row.value]),
         );
 
-        if (resetBody) {
-            const declared = endpoint?.query_params ?? [];
-            queryRows = queryRowsEditor(declared.map((key) => [key, ""]));
-            mount(queryBox, queryRows.el);
+    const url = createMemo(() => {
+        const current = endpoint();
+        if (!current) return "";
 
-            const skeleton = Object.fromEntries((endpoint?.body_params ?? []).map((param) => [param, ""]));
-            bodyArea.value = Object.keys(skeleton).length ? JSON.stringify(skeleton, null, 2) : "";
+        let value = endpointUrl(current);
+
+        for (const param of params()) {
+            value = value.replace(new RegExp(`\\{\\s*${param}\\s*\\}`), routeValues()[param] ?? "");
         }
 
-        const hasBody = endpoint && endpoint.method.toLowerCase() !== "get";
-        bodySection.hidden = !hasBody;
-
-        updatePreview();
-    };
-
-    queryBox.addEventListener("input", updatePreview);
-    queryBox.addEventListener("click", () => setTimeout(updatePreview));
-
-    select.addEventListener("change", () => {
-        state.endpointId = select.value;
-        state.routeValues = {};
-        renderEndpoint({ resetBody: true });
+        return value + query(queryObject());
     });
 
-    if (test?.body !== undefined) bodyArea.value = typeof test.body === "string" ? test.body : JSON.stringify(test.body, null, 2);
+    const selectEndpoint = (id) => {
+        setEndpointId(id);
+        setRouteValues({});
 
-    renderEndpoint({ resetBody: test === null });
-    mount(responseBox, responseView(state.response));
+        const current = endpoint();
+        setQueryRows((current?.query_params ?? []).map((key) => ({ key, value: "" })));
 
-    async function send() {
-        const endpoint = currentEndpoint();
-        if (!endpoint) return;
+        const skeleton = Object.fromEntries((current?.body_params ?? []).map((param) => [param, ""]));
+        setBody(Object.keys(skeleton).length ? JSON.stringify(skeleton, null, 2) : "");
+    };
 
-        const url = buildUrl();
-        const method = endpoint.method.toUpperCase();
+    // A new request starts from the declared params of the preselected endpoint.
+    if (test === null) selectEndpoint(endpointId());
+
+    const updateToken = (value) => {
+        setToken(value);
+        storeToken(value.trim());
+    };
+
+    const setRow = (ix, field, value) => setQueryRows(queryRows().map((row, other) => (other === ix ? { ...row, [field]: value } : row)));
+
+    const send = async () => {
+        const current = endpoint();
+        if (!current) return;
+
+        const target = url();
+        const method = current.method.toUpperCase();
         const headers = { "Cache-Control": "no-cache" };
-        const token = tokenInput.value.trim();
 
-        if (token) headers.Authorization = token;
+        if (token().trim()) headers.Authorization = token().trim();
 
-        let body;
+        let requestBody;
 
-        if (method !== "GET" && bodyArea.value.trim() !== "") {
+        if (method !== "GET" && body().trim() !== "") {
             try {
-                JSON.parse(bodyArea.value);
+                JSON.parse(body());
             } catch (err) {
                 toast(`The body isn't valid JSON: ${err.message}`, "error");
                 return;
             }
 
-            body = bodyArea.value;
+            requestBody = body();
             headers["Content-Type"] = "application/json";
         }
 
-        sendButton.disabled = true;
+        setSending(true);
         const started = performance.now();
 
         try {
             // `omit` keeps the admin's session out of the request: only the token above is used.
-            const response = await fetch(url, { method, headers, body, credentials: "omit" });
-            const data = await readBody(response);
+            const res = await fetch(target, { method, headers, body: requestBody, credentials: "omit" });
+            const data = await readBody(res);
 
-            state.response = {
-                route: url,
-                status: response.status,
-                time: response.headers.get("Date") ?? new Date().toUTCString(),
+            setResponse({
+                route: target,
+                status: res.status,
+                time: res.headers.get("Date") ?? new Date().toUTCString(),
                 duration: Math.round(performance.now() - started),
                 body: data,
-            };
+            });
 
             if (data && typeof data === "object" && !Array.isArray(data) && typeof data.token === "string") {
-                tokenInput.value = data.token;
-                storeToken(data.token);
+                updateToken(data.token);
                 toast("Session token captured: next requests will be authenticated.", "success");
             }
 
-            if (!response.ok && response.status === 401) {
+            if (res.status === 401) {
                 toast(`${errorMessage(data, 401)} Sign in through the Login endpoint (internal) to get a token.`, "error");
             }
         } catch (err) {
-            state.response = { route: url, status: 0, body: `Network error: ${err.message}` };
+            setResponse({ route: target, status: 0, body: `Network error: ${err.message}` });
         } finally {
-            sendButton.disabled = false;
+            setSending(false);
         }
-
-        mount(responseBox, responseView(state.response));
-    }
+    };
 
     // Save as test.
-    const nameInput = h("input", { class: "input", required: true, pattern: NAME_PATTERN, title: "Letters, digits, spaces, `_`, `.` and `-`.", value: test?.name ?? "" });
-    const descriptionInput = h("input", { class: "input", value: test?.description ?? "" });
-    const fileInput = h("input", { class: "input", value: path ?? "default.json", readonly: test !== null, pattern: ".+\\.json" });
+    let nameInput;
+    let fileInput;
+    const [name, setName] = createSignal(test?.name ?? "");
+    const [description, setDescription] = createSignal(test?.description ?? "");
+    const [file, setFile] = createSignal(props.path ?? "default.json");
 
     const collect = () => {
         const value = {
-            name: nameInput.value.trim(),
-            target_endpoint_id: state.endpointId,
-            route_params: state.routeValues,
-            query_params: Object.fromEntries(queryRows.get()),
+            name: name().trim(),
+            target_endpoint_id: endpointId(),
+            route_params: routeValues(),
+            query_params: queryObject(),
         };
 
-        if (descriptionInput.value.trim()) value.description = descriptionInput.value.trim();
+        if (description().trim()) value.description = description().trim();
 
-        if (bodyArea.value.trim()) {
+        if (body().trim()) {
             try {
-                value.body = JSON.parse(bodyArea.value);
+                value.body = JSON.parse(body());
             } catch {
-                value.body = bodyArea.value;
+                value.body = body();
             }
         }
 
-        if (state.response) {
-            const { duration, ...response } = state.response;
-            value.response = response;
+        if (response()) {
+            const { duration, ...stored } = response();
+            value.response = stored;
         }
 
         return value;
@@ -385,79 +282,259 @@ function requestEditor({ test, path, endpoints, endpointId }) {
     const save = async () => {
         if (!nameInput.reportValidity() || !fileInput.reportValidity()) return;
 
-        const body = collect();
+        // The DOM validation above may disagree with the state if the input was changed without an
+        // `input` event (e.g. autofill): validate the value that is actually sent.
+        if (!new RegExp(`^${NAME_PATTERN}$`).test(name().trim())) {
+            toast("The test needs a name: letters, digits, spaces, `_`, `.` and `-`.", "error");
+            nameInput.focus();
+            return;
+        }
+
+        const value = collect();
 
         try {
             if (test === null) {
-                await api("POST", "/api/internal/admin/tests" + query({ target_file: fileInput.value.trim() }), body);
+                await api("POST", "/api/internal/admin/tests" + query({ target_file: file().trim() }), value);
             } else {
-                await api("PUT", `/api/internal/admin/tests/${encodeURIComponent(test.name)}`, body);
+                await api("PUT", `/api/internal/admin/tests/${encodeURIComponent(test.name)}`, value);
             }
 
-            toast(`Test ${body.name} saved.`, "success");
-            refresh(link("tests", body.name));
+            toast(`Test ${value.name} saved.`, "success");
+            props.onChange();
+            navigate(`/tests/${encodeURIComponent(value.name)}`);
         } catch (err) {
             toast(err.message, "error");
         }
     };
 
     const remove = async () => {
-        if (!(await confirmAction("Delete test", `${test.name} will be removed from tests/${path}.`))) return;
+        if (!(await confirmAction("Delete test", `${test.name} will be removed from tests/${props.path}.`))) return;
 
         try {
             await api("DELETE", `/api/internal/admin/tests/${encodeURIComponent(test.name)}`);
             toast(`Test ${test.name} deleted.`, "success");
-            refresh("#/tests");
+            props.onChange();
+            navigate("/tests");
         } catch (err) {
             toast(err.message, "error");
         }
     };
 
-    const root = h(
-        "div",
-        { class: "stack" },
-        h(
-            "div",
-            { class: "card card-body stack" },
-            h("div", { class: "request-bar" }, select, sendButton),
-            urlPreview,
-            h("section", { class: "form-section" }, h("header", {}, h("h3", {}, "Path params")), routeParamsBox),
-            h("section", { class: "form-section" }, h("header", {}, h("h3", {}, "Query params")), queryBox),
-            mount(bodySection, h("header", {}, h("h3", {}, "Body"), h("p", {}, "JSON object. Values are sent to SQL as text.")), bodyArea),
-            h(
-                "section",
-                { class: "form-section" },
-                h("header", {}, h("h3", {}, "Session token"), h("p", {}, "Sent as the Authorization header. It's captured automatically from Login/Signup responses.")),
-                h("div", { class: "row", style: { flexWrap: "nowrap" } }, tokenInput, h("button", { class: "btn", type: "button", onClick: () => { tokenInput.value = ""; storeToken(""); } }, "Clear")),
-            ),
-        ),
-        h("div", { class: "card card-body" }, h("h2", { style: { marginBottom: "12px" } }, "Response"), responseBox),
-        h(
-            "div",
-            { class: "card card-body stack" },
-            h("h2", {}, test ? "Test" : "Save as test"),
-            h(
-                "div",
-                { class: "form-grid" },
-                h("label", { class: "field" }, h("span", {}, "Name"), nameInput),
-                h("label", { class: "field" }, h("span", {}, "File"), fileInput, h("small", {}, "Inside the project's tests folder")),
-            ),
-            h("label", { class: "field" }, h("span", {}, "Description"), descriptionInput),
-            h(
-                "div",
-                { class: "row" },
-                h("button", { class: "btn primary", type: "button", onClick: save }, icon("save"), test ? "Save changes" : "Save test"),
-                test && h("button", { class: "btn danger", type: "button", style: { marginLeft: "auto" }, onClick: remove }, icon("trash"), "Delete"),
-            ),
-        ),
-    );
-
-    root.addEventListener("keydown", (event) => {
+    const onKeyDown = (event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
             event.preventDefault();
             send();
         }
+    };
+
+    const optionLabel = (entry) => `${entry.method.toUpperCase().padEnd(6, " ")} ${endpointUrl(entry)}  ·  ${entry.id}`;
+
+    return html`
+        <div class="stack" onKeyDown=${onKeyDown}>
+            <div class="card card-body stack">
+                <div class="request-bar">
+                    <select class="select" aria-label="Endpoint" onChange=${(event) => selectEndpoint(event.target.value)}>
+                        <${For} each=${ORIGINS}>
+                            ${([origin, label]) => html`
+                                <optgroup label=${label}>
+                                    <${For}
+                                        each=${endpoints
+                                            .filter((entry) => entry.origin === origin)
+                                            .sort((a, b) => endpointUrl(a.endpoint).localeCompare(endpointUrl(b.endpoint)))}
+                                    >
+                                        ${(entry) => html`
+                                            <option value=${entry.endpoint.id} selected=${() => entry.endpoint.id === endpointId()}>
+                                                ${optionLabel(entry.endpoint)}
+                                            </option>
+                                        `}
+                                    <//>
+                                </optgroup>
+                            `}
+                        <//>
+                    </select>
+                    <button class="btn primary" type="button" disabled=${sending} onClick=${send}><${Icon} name="play" /> Send</button>
+                </div>
+
+                <div class="url-preview">
+                    <${Show} when=${endpoint}><${MethodBadge} method=${() => endpoint().method} /><//>
+                    <span>${url}</span>
+                </div>
+
+                <section class="form-section">
+                    <header><h3>Path params</h3></header>
+                    <div class="param-table">
+                        <${Show}
+                            when=${() => params().length > 0}
+                            fallback=${html`<span class="muted" style="grid-column: 1 / -1">This route has no path params.</span>`}
+                        >
+                            <${For} each=${params}>
+                                ${(param) => html`
+                                    <label for=${`rp-${param}`}>{${param}}</label>
+                                    <input
+                                        class="input"
+                                        id=${`rp-${param}`}
+                                        value=${routeValues()[param] ?? ""}
+                                        onInput=${(event) => setRouteValues({ ...routeValues(), [param]: event.target.value })}
+                                    />
+                                `}
+                            <//>
+                        <//>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <header><h3>Query params</h3></header>
+                    <div class="stack" style="gap: 6px">
+                        <${For} each=${queryRows}>
+                            ${(row, ix) => html`
+                                <div class="row" style="flex-wrap: nowrap">
+                                    <input
+                                        class="input mono"
+                                        placeholder="name"
+                                        style="max-width: 200px"
+                                        value=${row.key}
+                                        onInput=${(event) => setRow(ix(), "key", event.target.value)}
+                                    />
+                                    <input class="input" placeholder="value" value=${row.value} onInput=${(event) => setRow(ix(), "value", event.target.value)} />
+                                    <button
+                                        class="btn ghost small"
+                                        type="button"
+                                        aria-label="Remove param"
+                                        onClick=${() => setQueryRows(queryRows().filter((_, other) => other !== ix()))}
+                                    >
+                                        <${Icon} name="x" />
+                                    </button>
+                                </div>
+                            `}
+                        <//>
+                        <div>
+                            <button class="btn small" type="button" onClick=${() => setQueryRows([...queryRows(), { key: "", value: "" }])}>
+                                <${Icon} name="plus" /> Add query param
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <${Show} when=${hasBody}>
+                    <section class="form-section">
+                        <header>
+                            <h3>Body</h3>
+                            <p>JSON object. Values are sent to SQL as text.</p>
+                        </header>
+                        <textarea class="textarea code" rows="8" spellcheck="false" value=${body} onInput=${(event) => setBody(event.target.value)}></textarea>
+                    </section>
+                <//>
+
+                <section class="form-section">
+                    <header>
+                        <h3>Session token</h3>
+                        <p>Sent as the Authorization header. It's captured automatically from Login/Signup responses.</p>
+                    </header>
+                    <div class="row" style="flex-wrap: nowrap">
+                        <input
+                            class="input mono"
+                            placeholder="No token: requests are anonymous"
+                            value=${token}
+                            onInput=${(event) => updateToken(event.target.value)}
+                        />
+                        <button class="btn" type="button" onClick=${() => updateToken("")}>Clear</button>
+                    </div>
+                </section>
+            </div>
+
+            <div class="card card-body">
+                <h2 style="margin-bottom: 12px">Response</h2>
+                <${Show} when=${response} fallback=${html`<p class="muted">Send the request to see the response here.</p>`}>
+                    <${ResponseView} response=${() => response()} />
+                <//>
+            </div>
+
+            <div class="card card-body stack">
+                <h2>${test ? "Test" : "Save as test"}</h2>
+                <div class="form-grid">
+                    <${Field} label="Name">
+                        <input
+                            class="input"
+                            required
+                            pattern=${NAME_PATTERN}
+                            title="Letters, digits, spaces, \`_\`, \`.\` and \`-\`."
+                            ref=${(el) => (nameInput = el)}
+                            value=${name}
+                            onInput=${(event) => setName(event.target.value)}
+                        />
+                    <//>
+                    <${Field} label="File" hint="Inside the project's tests folder">
+                        <input
+                            class="input"
+                            pattern=".+\\.json"
+                            readonly=${test !== null}
+                            ref=${(el) => (fileInput = el)}
+                            value=${file}
+                            onInput=${(event) => setFile(event.target.value)}
+                        />
+                    <//>
+                </div>
+                <${Field} label="Description">
+                    <input class="input" value=${description} onInput=${(event) => setDescription(event.target.value)} />
+                <//>
+                <div class="row">
+                    <button class="btn primary" type="button" onClick=${save}><${Icon} name="save" /> ${test ? "Save changes" : "Save test"}</button>
+                    <${Show} when=${test}>
+                        <button class="btn danger" type="button" style="margin-left: auto" onClick=${remove}><${Icon} name="trash" /> Delete</button>
+                    <//>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+export function Tests() {
+    const params = useParams();
+    const location = useLocation();
+    const [data, { refetch }] = createResource(fetchData);
+
+    const isNew = () => location.pathname.startsWith("/tests/new");
+    const name = () => (isNew() ? undefined : decodeParam(params.name));
+    const endpointId = () => (isNew() ? decodeParam(params.endpoint) : undefined);
+
+    const entry = createMemo(() => {
+        const current = name();
+        if (current === undefined || !data()) return null;
+
+        const found = data().tests.find((candidate) => candidate.test.name === current) ?? null;
+        if (!found) toast(`Test \`${current}\` doesn't exist.`, "error");
+        return found;
     });
 
-    return root;
+    // Key of the editor: it's remounted (and its state reset) whenever it changes.
+    const editorKey = createMemo(() => {
+        if (!data()) return null;
+        if (isNew()) return { kind: "new", endpointId: endpointId() };
+        if (entry()) return { kind: "test", entry: entry() };
+        return null;
+    });
+
+    return html`
+        <div>
+            <${PageHeader} title="Tests" description="Try any endpoint and save the request as a test of your project." />
+            <${Await} resource=${() => data}>
+                ${(value) => html`
+                    <div class="tests-layout">
+                        <${TestList} tests=${value.tests} current=${() => entry()?.test.name ?? null} />
+                        <${Show} when=${editorKey} keyed=${true} fallback=${html`<div class="card card-body empty">Select a test, or start a new request.</div>`}>
+                            ${(key) => html`
+                                <${RequestEditor}
+                                    test=${key.kind === "test" ? key.entry.test : null}
+                                    path=${key.kind === "test" ? key.entry.path : undefined}
+                                    endpointId=${key.endpointId}
+                                    endpoints=${value.endpoints}
+                                    onChange=${refetch}
+                                />
+                            `}
+                        <//>
+                    </div>
+                `}
+            <//>
+        </div>
+    `;
 }

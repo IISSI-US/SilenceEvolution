@@ -5,11 +5,11 @@
 // Written with Solid without a build step: `html` tagged templates instead of JSX.
 
 import { createMemo, createResource, createSignal, For, onMount, Show } from "solid-js";
-import { render } from "solid-js/web";
 import html from "solid-js/html";
 
 import { api } from "../api.js";
-import { confirmAction, h, icon, toast } from "../dom.js";
+import { confirmAction, toast } from "../dom.js";
+import { Icon, Loading, PageHeader } from "../ui.js";
 
 const fetchUsers = async () => {
     const [users, me] = await Promise.all([api("GET", "/api/internal/admin/users"), api("GET", "/api/internal/whoami")]);
@@ -99,7 +99,7 @@ function UserDialog(props) {
     `;
 }
 
-function Users() {
+export function Users() {
     const [data, { refetch }] = createResource(fetchUsers);
     const [filter, setFilter] = createSignal("");
     // `undefined`: no dialog; `null`: new user; object: user being edited.
@@ -129,15 +129,11 @@ function Users() {
 
     return html`
         <div>
-            <header class="page-header">
-                <div>
-                    <h1>Users</h1>
-                    <p>Accounts of your app (internal database). Users sign up from /auth2 or through the SignUp endpoint.</p>
-                </div>
-                <div class="actions">
-                    <button class="btn primary" type="button" onClick=${() => setEditing(null)}>${icon("plus")} New user</button>
-                </div>
-            </header>
+            <${PageHeader}
+                title="Users"
+                description="Accounts of your app (internal database). Users sign up from /auth2 or through the SignUp endpoint."
+                actions=${html`<button class="btn primary" type="button" onClick=${() => setEditing(null)}><${Icon} name="plus" /> New user</button>`}
+            />
 
             <div class="toolbar">
                 <input
@@ -150,7 +146,7 @@ function Users() {
                 <span class="muted" style="margin-left: auto; font-size: 12.5px">${() => `${data()?.users.length ?? 0} users`}</span>
             </div>
 
-            <${Show} when=${() => !data.loading} fallback=${html`<div class="loading"><div class="spinner"></div>Loading…</div>`}>
+            <${Show} when=${() => !data.loading} fallback=${html`<${Loading} />`}>
                 <${Show} when=${() => !data.error} fallback=${() => html`<div class="alert danger">${() => data.error?.message}</div>`}>
                     <div class="table-wrap">
                         <table class="table">
@@ -182,7 +178,7 @@ function Users() {
                                                         aria-label=${`Delete ${user.name}`}
                                                         onClick=${() => remove(user)}
                                                     >
-                                                        ${icon("trash")}
+                                                        <${Icon} name="trash" />
                                                     </button>
                                                 <//>
                                             </td>
@@ -195,17 +191,9 @@ function Users() {
                 <//>
             <//>
 
-            <${Show} when=${() => editing() !== undefined} keyed>
+            <${Show} when=${() => editing() !== undefined} keyed=${true}>
                 ${() => html`<${UserDialog} user=${editing()} onClose=${closeDialog} />`}
             <//>
         </div>
     `;
-}
-
-/** Mounts the view; it's disposed on the next navigation (until the shell is migrated to Solid). */
-export function view() {
-    const container = h("div");
-    const dispose = render(() => html`<${Users} />`, container);
-    addEventListener("hashchange", dispose, { once: true });
-    return container;
 }

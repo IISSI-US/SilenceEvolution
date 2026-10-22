@@ -2,11 +2,16 @@
 // Copyright (C) 2026 DEAL research group, Universidad de Sevilla
 
 // Endpoints: list grouped by origin + side drawer editor.
+// Written with Solid without a build step: `html` tagged templates instead of JSX.
+
+import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import html from "solid-js/html";
+import { useNavigate, useParams } from "@solidjs/router";
 
 import { api, endpointUrl, query } from "../api.js";
-import { chipsInput, confirmAction, debounce, h, icon, mount, toast } from "../dom.js";
+import { confirmAction, toast } from "../dom.js";
 import { sqlEditor } from "../highlight.js";
-import { link, navigate, refresh } from "../router.js";
+import { Chips, Field, Icon, Loading, MethodBadge, PageHeader, Tabs } from "../ui.js";
 
 const METHODS = ["get", "post", "put", "delete"];
 const BEHAVIOURS = [
@@ -14,6 +19,15 @@ const BEHAVIOURS = [
     ["unique", "Exactly one row (returns an object)"],
     ["fail_on_empty", "Fail when there are no rows"],
 ];
+
+// The server compares the user's role in lowercase against `allowed_roles` as written.
+const ROLE_CASE_WARNING = "Roles with uppercase letters never match: the server compares roles in lowercase. Write them in lowercase.";
+
+const ORIGIN_LABELS = {
+    user: "Defined in the project",
+    generated: "Generated from the database",
+    internal: "Silence internal",
+};
 
 /**
  * Origin of an endpoint:
@@ -39,172 +53,181 @@ export async function fetchEndpoints() {
     );
 }
 
-function methodBadge(method) {
-    const value = (method ?? "").toLowerCase();
-    return h("span", { class: `method ${value}` }, value.toUpperCase());
+/** Link to the Tests view with the endpoint preselected. */
+const tryHref = (id) => `#/tests/new/${encodeURIComponent(id)}`;
+
+/** Auth badges of an endpoint, warning about roles that can never match. */
+function Access(props) {
+    return html`
+        <div class="flags">
+            <${Show} when=${() => props.endpoint.require_auth}><span class="badge warning">auth</span><//>
+            <${Show} when=${() => !props.endpoint.require_auth && props.endpoint.inject_auth_metadata}>
+                <span class="badge">optional auth</span>
+            <//>
+            <${For} each=${() => props.endpoint.allowed_roles ?? []}>
+                ${(role) =>
+                    role === role.toLowerCase()
+                        ? html`<span class="badge accent">${role}</span>`
+                        : html`<span class="badge danger" title=${ROLE_CASE_WARNING}>${role} ⚠</span>`}
+            <//>
+        </div>
+    `;
 }
 
-function flags(endpoint) {
-    return h(
-        "div",
-        { class: "flags" },
-        endpoint.require_auth && h("span", { class: "badge warning" }, "auth"),
-        !endpoint.require_auth && endpoint.inject_auth_metadata && h("span", { class: "badge" }, "optional auth"),
-        (endpoint.allowed_roles ?? []).map((role) =>
-            role === role.toLowerCase()
-                ? h("span", { class: "badge accent" }, role)
-                : h("span", { class: "badge danger", title: ROLE_CASE_WARNING }, `${role} ⚠`),
-        ),
-    );
-}
+/** Groups the visible entries: one group per user file, then generated, then internal. */
+function groupEntries(entries) {
+    const groups = [];
 
-// The server compares the user's role in lowercase against `allowed_roles` as written.
-const ROLE_CASE_WARNING = "Roles with uppercase letters never match: the server compares roles in lowercase. Write them in lowercase.";
+    for (const originKey of ["user", "generated", "internal"]) {
+        const ofOrigin = entries.filter((entry) => entry.origin === originKey);
+        if (!ofOrigin.length) continue;
 
-const ORIGIN_LABELS = {
-    user: "Defined in the project",
-    generated: "Generated from the database",
-    internal: "Silence internal",
-};
-
-export async function view(selectedId) {
-    let entries = await fetchEndpoints();
-
-    const state = { filter: "", showInternal: false };
-
-    const tbody = h("tbody");
-
-    const search = h("input", {
-        class: "input search",
-        type: "search",
-        placeholder: "Filter by id, route or method…",
-        "aria-label": "Filter endpoints",
-        onInput: debounce(() => {
-            state.filter = search.value.trim().toLowerCase();
-            renderRows();
-        }),
-    });
-
-    const internalToggle = h("input", {
-        type: "checkbox",
-        onChange: () => {
-            state.showInternal = internalToggle.checked;
-            renderRows();
-        },
-    });
-
-    const summary = h("span", { class: "muted", style: { marginLeft: "auto", fontSize: "12.5px" } });
-
-    const matches = ({ endpoint }) =>
-        !state.filter ||
-        [endpoint.id, endpointUrl(endpoint), endpoint.method, endpoint.description ?? ""].some((value) =>
-            value.toLowerCase().includes(state.filter),
-        );
-
-    const renderRows = () => {
-        const visible = entries.filter((entry) => (state.showInternal || entry.origin !== "internal") && matches(entry));
-
-        const groups = [];
-
-        for (const originKey of ["user", "generated", "internal"]) {
-            const ofOrigin = visible.filter((entry) => entry.origin === originKey);
-            if (!ofOrigin.length) continue;
-
-            if (originKey === "user") {
-                const files = [...new Set(ofOrigin.map((entry) => entry.path))].sort();
-                for (const file of files) {
-                    groups.push([`${ORIGIN_LABELS.user} · endpoints/${file}`, ofOrigin.filter((entry) => entry.path === file)]);
-                }
-            } else {
-                groups.push([ORIGIN_LABELS[originKey], ofOrigin]);
+        if (originKey === "user") {
+            const files = [...new Set(ofOrigin.map((entry) => entry.path))].sort();
+            for (const file of files) {
+                groups.push({ label: `${ORIGIN_LABELS.user} · endpoints/${file}`, entries: ofOrigin.filter((entry) => entry.path === file) });
             }
-        }
-
-        summary.textContent = `${visible.length} of ${entries.length} endpoints`;
-
-        if (!visible.length) {
-            mount(tbody, h("tr", {}, h("td", { colspan: 5, class: "empty" }, "No endpoints match the filter.")));
-            return;
-        }
-
-        mount(
-            tbody,
-            groups.map(([label, group]) => [
-                h("tr", { class: "group" }, h("td", { colspan: 5 }, label)),
-                group
-                    .sort((a, b) => endpointUrl(a.endpoint).localeCompare(endpointUrl(b.endpoint)) || a.endpoint.method.localeCompare(b.endpoint.method))
-                    .map((entry) =>
-                        h(
-                            "tr",
-                            {
-                                class: entry.endpoint.id === selectedId ? "clickable selected" : "clickable",
-                                onClick: () => navigate(link("endpoints", entry.endpoint.id)),
-                            },
-                            h("td", {}, methodBadge(entry.endpoint.method)),
-                            h("td", {}, h("span", { class: "endpoint-route" }, endpointUrl(entry.endpoint))),
-                            h("td", {}, h("span", { class: "endpoint-id" }, entry.endpoint.id)),
-                            h("td", {}, flags(entry.endpoint)),
-                            h(
-                                "td",
-                                { class: "actions" },
-                                h(
-                                    "a",
-                                    {
-                                        class: "btn ghost small",
-                                        href: link("tests", "new", entry.endpoint.id),
-                                        title: "Try this endpoint",
-                                        onClick: (event) => event.stopPropagation(),
-                                    },
-                                    icon("play"),
-                                    "Try",
-                                ),
-                            ),
-                        ),
-                    ),
-            ]),
-        );
-    };
-
-    renderRows();
-
-    const content = h(
-        "div",
-        {},
-        h(
-            "header",
-            { class: "page-header" },
-            h(
-                "div",
-                {},
-                h("h1", {}, "Endpoints"),
-                h("p", {}, "REST API of your project: endpoints you define plus the CRUD generated from the database."),
-            ),
-            h("div", { class: "actions" }, h("a", { class: "btn primary", href: link("endpoints", "new") }, icon("plus"), "New endpoint")),
-        ),
-        h("div", { class: "toolbar" }, search, h("label", { class: "check" }, internalToggle, "Show internal"), summary),
-        h(
-            "div",
-            { class: "table-wrap" },
-            h(
-                "table",
-                { class: "table" },
-                h("thead", {}, h("tr", {}, h("th", {}, "Method"), h("th", {}, "URL"), h("th", {}, "Id"), h("th", {}, "Access"), h("th", {}))),
-                tbody,
-            ),
-        ),
-    );
-
-    if (selectedId !== undefined) {
-        const entry = selectedId === "new" ? null : entries.find((candidate) => candidate.endpoint.id === selectedId);
-
-        if (selectedId !== "new" && !entry) {
-            toast(`Endpoint \`${selectedId}\` doesn't exist.`, "error");
         } else {
-            content.append(editor(entry));
+            groups.push({ label: ORIGIN_LABELS[originKey], entries: ofOrigin });
         }
     }
 
-    return content;
+    for (const group of groups) {
+        group.entries.sort(
+            (a, b) => endpointUrl(a.endpoint).localeCompare(endpointUrl(b.endpoint)) || a.endpoint.method.localeCompare(b.endpoint.method),
+        );
+    }
+
+    return groups;
+}
+
+export function Endpoints() {
+    const params = useParams();
+    const navigate = useNavigate();
+
+    const [entries, { refetch }] = createResource(fetchEndpoints);
+    const [filter, setFilter] = createSignal("");
+    const [showInternal, setShowInternal] = createSignal(false);
+
+    const visible = createMemo(() => {
+        const text = filter().trim().toLowerCase();
+
+        return (entries() ?? []).filter(
+            ({ origin, endpoint }) =>
+                (showInternal() || origin !== "internal") &&
+                (!text ||
+                    [endpoint.id, endpointUrl(endpoint), endpoint.method, endpoint.description ?? ""].some((value) =>
+                        value.toLowerCase().includes(text),
+                    )),
+        );
+    });
+
+    const groups = createMemo(() => groupEntries(visible()));
+
+    const open = (id) => navigate(`/endpoints/${encodeURIComponent(id)}`);
+    const close = () => navigate("/endpoints");
+
+    // The editor is keyed by the selected id (once the list is loaded): it's recreated when the
+    // selection changes, but not when the list is refetched.
+    const selection = () => (entries() ? params.id : undefined);
+
+    const editorFor = (id) => {
+        const entry = id === "new" ? null : entries().find((candidate) => candidate.endpoint.id === id);
+
+        if (entry === undefined) {
+            queueMicrotask(() => {
+                toast(`Endpoint \`${id}\` doesn't exist.`, "error");
+                close();
+            });
+            return null;
+        }
+
+        // `onDone` takes an argument on purpose: solid-js/html turns zero-argument function props
+        // into getters, which would call the handler on access.
+        const onDone = async (result) => {
+            if (result) await refetch();
+            if (result?.saved) open(result.saved);
+            else close();
+        };
+
+        return html`<${Editor} entry=${entry} onDone=${onDone} />`;
+    };
+
+    return html`
+        <div>
+            <${PageHeader}
+                title="Endpoints"
+                description="REST API of your project: endpoints you define plus the CRUD generated from the database."
+                actions=${html`<a class="btn primary" href="#/endpoints/new"><${Icon} name="plus" /> New endpoint</a>`}
+            />
+
+            <div class="toolbar">
+                <input
+                    class="input search"
+                    type="search"
+                    placeholder="Filter by id, route or method…"
+                    aria-label="Filter endpoints"
+                    onInput=${(event) => setFilter(event.target.value)}
+                />
+                <label class="check">
+                    <input type="checkbox" checked=${() => showInternal()} onChange=${(event) => setShowInternal(event.target.checked)} />
+                    Show internal
+                </label>
+                <span class="muted" style="margin-left: auto; font-size: 12.5px">
+                    ${() => `${visible().length} of ${entries()?.length ?? 0} endpoints`}
+                </span>
+            </div>
+
+            <${Show} when=${() => !entries.error} fallback=${() => html`<div class="alert danger">${() => entries.error?.message}</div>`}>
+                <${Show} when=${() => entries()} fallback=${html`<${Loading} />`}>
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead>
+                                <tr><th>Method</th><th>URL</th><th>Id</th><th>Access</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                <${For}
+                                    each=${groups}
+                                    fallback=${html`<tr><td colspan="5" class="empty">No endpoints match the filter.</td></tr>`}
+                                >
+                                    ${(group) => [
+                                        html`<tr class="group"><td colspan="5">${group.label}</td></tr>`,
+                                        html`
+                                            <${For} each=${group.entries}>
+                                                ${(entry) => html`
+                                                    <tr
+                                                        class=${() => (params.id === entry.endpoint.id ? "clickable selected" : "clickable")}
+                                                        onClick=${() => open(entry.endpoint.id)}
+                                                    >
+                                                        <td><${MethodBadge} method=${entry.endpoint.method} /></td>
+                                                        <td><span class="endpoint-route">${endpointUrl(entry.endpoint)}</span></td>
+                                                        <td><span class="endpoint-id">${entry.endpoint.id}</span></td>
+                                                        <td><${Access} endpoint=${entry.endpoint} /></td>
+                                                        <td class="actions">
+                                                            <a
+                                                                class="btn ghost small"
+                                                                href=${tryHref(entry.endpoint.id)}
+                                                                title="Try this endpoint"
+                                                                onClick=${(event) => event.stopPropagation()}
+                                                            >
+                                                                <${Icon} name="play" /> Try
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                `}
+                                            <//>
+                                        `,
+                                    ]}
+                                <//>
+                            </tbody>
+                        </table>
+                    </div>
+                <//>
+            <//>
+
+            <${Show} when=${selection} keyed=${true}>${(id) => editorFor(id)}<//>
+        </div>
+    `;
 }
 
 /** Normalizes `execute` to the `{ queries: [...] }` form. */
@@ -216,213 +239,111 @@ function queriesOf(endpoint) {
     return [];
 }
 
-function queryBlock(entry, readonly, onRemove) {
-    const editor = sqlEditor(entry.query ?? "", { readonly, rows: 4 });
-
-    const include = h("input", { type: "checkbox", checked: entry.include !== false, disabled: readonly });
-
-    const behaviour = h(
-        "select",
-        { class: "select", disabled: readonly, style: { width: "auto" } },
-        BEHAVIOURS.map(([value, label]) => h("option", { value, selected: (entry.behaviour ?? "permissive") === value }, label)),
-    );
-
-    const el = h(
-        "div",
-        { class: "stack", style: { gap: "8px" } },
-        editor.el,
-        h(
-            "div",
-            { class: "row" },
-            h("label", { class: "check" }, include, "Include result in the response"),
-            behaviour,
-            !readonly && onRemove && h("button", { class: "btn ghost small danger", type: "button", style: { marginLeft: "auto" }, onClick: onRemove }, icon("trash"), "Remove query"),
-        ),
-    );
+/** State of one SQL query of the editor: its code editor plus `include` and `behaviour`. */
+function queryBlock(entry, readonly) {
+    const [include, setInclude] = createSignal(entry.include !== false);
+    const [behaviour, setBehaviour] = createSignal(entry.behaviour ?? "permissive");
 
     return {
-        el,
-        get: () => {
-            const value = { query: editor.get().trim() };
-            if (!include.checked) value.include = false;
-            if (behaviour.value !== "permissive") value.behaviour = behaviour.value;
+        editor: sqlEditor(entry.query ?? "", { readonly, rows: 4 }),
+        include,
+        setInclude,
+        behaviour,
+        setBehaviour,
+        get() {
+            const value = { query: this.editor.get().trim() };
+            if (!include()) value.include = false;
+            if (behaviour() !== "permissive") value.behaviour = behaviour();
             return value;
         },
     };
 }
 
-function editor(entry) {
+/**
+ * Drawer editor. `props.entry` is null for a new endpoint. `props.onDone(result)` is called with
+ * `{ saved: id }`, `{ deleted: true }` or `null` (closed without changes).
+ */
+function Editor(props) {
+    const entry = props.entry;
     const isNew = entry === null;
     const endpoint = entry?.endpoint ?? { id: "", method: "get", version: "v1", route: "", execute: { queries: [{ query: "" }] } };
     const kind = entry?.origin ?? "user";
     const readonly = kind === "internal";
 
-    const close = () => navigate("#/endpoints");
+    const [id, setId] = createSignal(endpoint.id ?? "");
+    const [method, setMethod] = createSignal((endpoint.method ?? "get").toLowerCase());
+    const [version, setVersion] = createSignal(endpoint.version ?? "");
+    const [route, setRoute] = createSignal(endpoint.route ?? "");
+    const [description, setDescription] = createSignal(endpoint.description ?? "");
+    const [file, setFile] = createSignal(entry?.path ?? "default.json");
+    const [requireAuth, setRequireAuth] = createSignal(!!endpoint.require_auth);
+    const [injectAuth, setInjectAuth] = createSignal(!!endpoint.inject_auth_metadata);
 
-    const input = (name, value, props = {}) => h("input", { class: "input", name, value: value ?? "", readonly, ...props });
+    let queryParams = [...(endpoint.query_params ?? [])];
+    let bodyParams = [...(endpoint.body_params ?? [])];
+    let roles = [...(endpoint.allowed_roles ?? [])];
 
-    const id = input("id", endpoint.id, { required: true, pattern: "[A-Za-z0-9_.\\-]+", title: "Letters, digits, `_`, `.` and `-`." });
-    const version = input("version", endpoint.version, { placeholder: "v1" });
-    const route = input("route", endpoint.route, { required: true, placeholder: "employees/{id}" });
-    const method = h(
-        "select",
-        { class: "select", name: "method", disabled: readonly },
-        METHODS.map((value) => h("option", { value, selected: endpoint.method?.toLowerCase() === value }, value.toUpperCase())),
-    );
-    const description = h("textarea", { class: "textarea", rows: 2, readonly }, endpoint.description ?? "");
-    const file = input("file", entry?.path ?? "default.json", { readonly: !isNew, placeholder: "default.json", pattern: ".+\\.json" });
+    const initialQueries = queriesOf(endpoint).length ? queriesOf(endpoint) : [{ query: "" }];
+    const [blocks, setBlocks] = createSignal(initialQueries.map((q) => queryBlock(q, readonly)));
 
-    const urlPreview = h("code", {});
-    const updatePreview = () => (urlPreview.textContent = endpointUrl({ version: version.value, route: route.value }));
-    version.addEventListener("input", updatePreview);
-    route.addEventListener("input", updatePreview);
-    updatePreview();
+    // Form / JSON tabs: the JSON tab shows (and lets you edit) the exact body sent to the server.
+    const [tab, setTab] = createSignal("form");
+    const [json, setJson] = createSignal("");
 
-    const queryParams = chipsInput(endpoint.query_params ?? [], { placeholder: "Add query param…", readonly });
-    const bodyParams = chipsInput(endpoint.body_params ?? [], { placeholder: "Add body param…", readonly });
-    const roles = chipsInput(endpoint.allowed_roles ?? [], { placeholder: "Add role…", readonly });
-
-    const requireAuth = h("input", { type: "checkbox", checked: !!endpoint.require_auth, disabled: readonly });
-    const injectAuth = h("input", { type: "checkbox", checked: !!endpoint.inject_auth_metadata, disabled: readonly });
-
-    const queriesContainer = h("div", { class: "stack" });
-    let queries = [];
-
-    const renderQueries = (values) => {
-        queries = values.map((value, ix) =>
-            queryBlock(value, readonly, values.length > 1 ? () => renderQueries(collectQueries().filter((_, other) => other !== ix)) : null),
-        );
-        mount(queriesContainer, queries.map((block) => block.el));
-    };
-
-    const collectQueries = () => queries.map((block) => block.get());
-
-    renderQueries(queriesOf(endpoint).length ? queriesOf(endpoint) : [{ query: "" }]);
+    let idInput;
+    let routeInput;
+    let fileInput;
 
     /** Builds the endpoint definition from the form. */
     const collect = () => {
         const value = {
-            id: id.value.trim(),
-            route: route.value.trim().replace(/^\/+/, ""),
-            method: method.value,
-            execute: { queries: collectQueries().filter((q) => q.query !== "") },
-            query_params: queryParams.get(),
-            body_params: bodyParams.get(),
-            allowed_roles: roles.get(),
-            require_auth: requireAuth.checked,
-            inject_auth_metadata: injectAuth.checked,
+            id: id().trim(),
+            route: route().trim().replace(/^\/+/, ""),
+            method: method(),
+            execute: { queries: blocks().map((block) => block.get()).filter((q) => q.query !== "") },
+            query_params: queryParams,
+            body_params: bodyParams,
+            allowed_roles: roles,
+            require_auth: requireAuth(),
+            inject_auth_metadata: injectAuth(),
         };
 
-        if (version.value.trim()) value.version = version.value.trim();
-        if (description.value.trim()) value.description = description.value.trim();
+        if (version().trim()) value.version = version().trim();
+        if (description().trim()) value.description = description().trim();
 
         return value;
     };
 
-    // Form / JSON tabs: the JSON tab shows (and lets you edit) the exact body sent to the server.
-    const jsonArea = h("textarea", { class: "textarea code", rows: 22, spellcheck: false, readonly });
-    const formPane = h("div", {});
-    const jsonPane = h("div", { hidden: true }, jsonArea, h("small", { class: "muted" }, "Editing the JSON and saving sends it as is."));
-
-    let tab = "form";
-    const tabButtons = {};
-
-    const setTab = (next) => {
-        if (next === tab) return;
-
-        if (next === "json") {
-            jsonArea.value = JSON.stringify(readonly ? endpoint : collect(), null, 2);
-        }
-
-        tab = next;
-        formPane.hidden = tab !== "form";
-        jsonPane.hidden = tab !== "json";
-
-        for (const [key, button] of Object.entries(tabButtons)) button.setAttribute("aria-selected", String(key === tab));
+    const changeTab = (next) => {
+        if (next === tab()) return;
+        if (next === "json") setJson(JSON.stringify(readonly ? endpoint : collect(), null, 2));
+        setTab(next);
     };
-
-    tabButtons.form = h("button", { type: "button", "aria-selected": "true", onClick: () => setTab("form") }, "Form");
-    tabButtons.json = h("button", { type: "button", "aria-selected": "false", onClick: () => setTab("json") }, "JSON");
-
-    const field = (label, control, hint) => h("label", { class: "field" }, h("span", {}, label), control, hint && h("small", {}, hint));
-
-    mount(
-        formPane,
-        kind === "generated" &&
-            h(
-                "div",
-                { class: "alert info origin-note" },
-                "Generated from the database schema. Saving changes turns it into an endpoint of your project (stored in endpoints/default.json).",
-            ),
-        kind === "internal" && h("div", { class: "alert origin-note" }, "Internal endpoint of Silence: it can't be modified or deleted."),
-        h(
-            "section",
-            { class: "form-section" },
-            h("header", {}, h("h3", {}, "Request")),
-            h("div", { class: "form-grid" }, field("Id", id), field("Method", method)),
-            h("div", { class: "form-grid" }, field("Version", version, "Optional URL prefix after /api"), field("Route", route, "Use {name} for path params")),
-            h("div", { class: "url-preview" }, methodBadge(endpoint.method), urlPreview),
-            field("Query params", queryParams.el, "Read from ?name=value"),
-            field("Body params", bodyParams.el, "Read from the JSON body"),
-        ),
-        h(
-            "section",
-            { class: "form-section" },
-            h(
-                "header",
-                {},
-                h("h3", {}, "SQL"),
-                h("p", {}, "{param} binds a request param. |user_id| is the authenticated user. Queries run in order."),
-            ),
-            queriesContainer,
-            !readonly &&
-                h(
-                    "div",
-                    {},
-                    h("button", { class: "btn small", type: "button", onClick: () => renderQueries([...collectQueries(), { query: "" }]) }, icon("plus"), "Add query"),
-                ),
-        ),
-        h(
-            "section",
-            { class: "form-section" },
-            h("header", {}, h("h3", {}, "Access")),
-            h("label", { class: "check" }, requireAuth, "Require authentication"),
-            h("label", { class: "check" }, injectAuth, "Make the user available when signed in (|user_id|)"),
-            field("Allowed roles", roles.el, "Empty: any authenticated user. Write roles in lowercase."),
-        ),
-        h(
-            "section",
-            { class: "form-section" },
-            h("header", {}, h("h3", {}, "Details")),
-            field("Description", description),
-            field("File", file, isNew ? "Inside the project's endpoints folder" : null),
-        ),
-    );
 
     const save = async () => {
         let body;
 
-        if (tab === "json") {
+        if (tab() === "json") {
             try {
-                body = JSON.parse(jsonArea.value);
+                body = JSON.parse(json());
             } catch (err) {
                 toast(`Invalid JSON: ${err.message}`, "error");
                 return;
             }
         } else {
-            if (!id.reportValidity() || !route.reportValidity() || (isNew && !file.reportValidity())) return;
+            if (!idInput.reportValidity() || !routeInput.reportValidity() || (isNew && !fileInput.reportValidity())) return;
             body = collect();
         }
 
         try {
             if (isNew) {
-                await api("POST", "/api/internal/admin/endpoints" + query({ target_file: file.value.trim() }), body);
+                await api("POST", "/api/internal/admin/endpoints" + query({ target_file: file().trim() }), body);
             } else {
                 await api("PUT", `/api/internal/admin/endpoints/${encodeURIComponent(endpoint.id)}`, body);
             }
 
             toast(`Endpoint ${body.id} saved.`, "success");
-            refresh(link("endpoints", body.id));
+            props.onDone({ saved: body.id });
         } catch (err) {
             toast(err.message, "error");
         }
@@ -439,52 +360,214 @@ function editor(entry) {
         try {
             await api("DELETE", `/api/internal/admin/endpoints/${encodeURIComponent(endpoint.id)}`);
             toast(`Endpoint ${endpoint.id} deleted.`, "success");
-            refresh("#/endpoints");
+            props.onDone({ deleted: true });
         } catch (err) {
             toast(err.message, "error");
         }
     };
 
     const onKey = (event) => {
-        if (event.key === "Escape" && !document.querySelector("dialog[open]")) close();
+        if (event.key === "Escape" && !document.querySelector("dialog[open]")) props.onDone(null);
         if ((event.ctrlKey || event.metaKey) && event.key === "s" && !readonly) {
             event.preventDefault();
             save();
         }
     };
 
-    document.addEventListener("keydown", onKey);
-    addEventListener("hashchange", () => document.removeEventListener("keydown", onKey), { once: true });
+    onMount(() => document.addEventListener("keydown", onKey));
+    onCleanup(() => document.removeEventListener("keydown", onKey));
 
-    return h(
-        "div",
-        {},
-        h("div", { class: "drawer-backdrop", onClick: close }),
-        h(
-            "aside",
-            { class: "drawer", role: "dialog", "aria-label": "Endpoint editor" },
-            h(
-                "header",
-                {},
-                h("h2", {}, isNew ? "New endpoint" : endpoint.id),
-                h(
-                    "div",
-                    { class: "row" },
-                    h("div", { class: "tabs" }, tabButtons.form, tabButtons.json),
-                    h("button", { class: "btn ghost small", type: "button", "aria-label": "Close", onClick: close }, icon("x")),
-                ),
-            ),
-            h("div", { class: "drawer-body" }, formPane, jsonPane),
-            h(
-                "footer",
-                {},
-                !readonly && h("button", { class: "btn primary", type: "button", onClick: save }, icon("save"), "Save"),
-                !isNew && h("a", { class: "btn", href: link("tests", "new", endpoint.id) }, icon("play"), "Try"),
-                h("span", { class: "spacer" }),
-                !isNew && !readonly && h("button", { class: "btn danger", type: "button", onClick: remove }, icon("trash"), "Delete"),
-            ),
-        ),
-    );
+    const addQuery = () => setBlocks([...blocks(), queryBlock({ query: "" }, readonly)]);
+    const removeQuery = (block) => setBlocks(blocks().filter((other) => other !== block));
+
+    const QueryBlock = (block) => html`
+        <div class="stack" style="gap: 8px">
+            ${block.editor.el}
+            <div class="row">
+                <label class="check">
+                    <input
+                        type="checkbox"
+                        checked=${() => block.include()}
+                        disabled=${readonly}
+                        onChange=${(event) => block.setInclude(event.target.checked)}
+                    />
+                    Include result in the response
+                </label>
+                <select class="select" style="width: auto" disabled=${readonly} onChange=${(event) => block.setBehaviour(event.target.value)}>
+                    ${BEHAVIOURS.map(([value, label]) => html`<option value=${value} selected=${block.behaviour() === value}>${label}</option>`)}
+                </select>
+                <${Show} when=${() => !readonly && blocks().length > 1}>
+                    <button class="btn ghost small danger" type="button" style="margin-left: auto" onClick=${() => removeQuery(block)}>
+                        <${Icon} name="trash" /> Remove query
+                    </button>
+                <//>
+            </div>
+        </div>
+    `;
+
+    const form = html`
+        <div>
+            <${Show} when=${kind === "generated"}>
+                <div class="alert info origin-note">
+                    Generated from the database schema. Saving changes turns it into an endpoint of your project (stored in
+                    endpoints/default.json).
+                </div>
+            <//>
+            <${Show} when=${kind === "internal"}>
+                <div class="alert origin-note">Internal endpoint of Silence: it can't be modified or deleted.</div>
+            <//>
+
+            <section class="form-section">
+                <header><h3>Request</h3></header>
+                <div class="form-grid">
+                    <${Field} label="Id">
+                        <input
+                            ref=${(el) => (idInput = el)}
+                            class="input"
+                            name="id"
+                            required
+                            pattern="[A-Za-z0-9_.\\-]+"
+                            title="Letters, digits, \`_\`, \`.\` and \`-\`."
+                            readonly=${readonly}
+                            value=${id()}
+                            onInput=${(event) => setId(event.target.value)}
+                        />
+                    <//>
+                    <${Field} label="Method">
+                        <select class="select" name="method" disabled=${readonly} onChange=${(event) => setMethod(event.target.value)}>
+                            ${METHODS.map((value) => html`<option value=${value} selected=${method() === value}>${value.toUpperCase()}</option>`)}
+                        </select>
+                    <//>
+                </div>
+                <div class="form-grid">
+                    <${Field} label="Version" hint="Optional URL prefix after /api">
+                        <input
+                            class="input"
+                            name="version"
+                            placeholder="v1"
+                            readonly=${readonly}
+                            value=${version()}
+                            onInput=${(event) => setVersion(event.target.value)}
+                        />
+                    <//>
+                    <${Field} label="Route" hint="Use {name} for path params">
+                        <input
+                            ref=${(el) => (routeInput = el)}
+                            class="input"
+                            name="route"
+                            required
+                            placeholder="employees/{id}"
+                            readonly=${readonly}
+                            value=${route()}
+                            onInput=${(event) => setRoute(event.target.value)}
+                        />
+                    <//>
+                </div>
+                <div class="url-preview">
+                    <${MethodBadge} method=${method} />
+                    <code>${() => endpointUrl({ version: version(), route: route() })}</code>
+                </div>
+                <${Field} label="Query params" hint="Read from ?name=value">
+                    <${Chips} value=${queryParams} placeholder="Add query param…" readonly=${readonly} onChange=${(list) => (queryParams = list)} />
+                <//>
+                <${Field} label="Body params" hint="Read from the JSON body">
+                    <${Chips} value=${bodyParams} placeholder="Add body param…" readonly=${readonly} onChange=${(list) => (bodyParams = list)} />
+                <//>
+            </section>
+
+            <section class="form-section">
+                <header>
+                    <h3>SQL</h3>
+                    <p>{param} binds a request param. |user_id| is the authenticated user. Queries run in order.</p>
+                </header>
+                <div class="stack"><${For} each=${blocks}>${(block) => QueryBlock(block)}<//></div>
+                <${Show} when=${!readonly}>
+                    <div>
+                        <button class="btn small" type="button" onClick=${addQuery}><${Icon} name="plus" /> Add query</button>
+                    </div>
+                <//>
+            </section>
+
+            <section class="form-section">
+                <header><h3>Access</h3></header>
+                <label class="check">
+                    <input type="checkbox" checked=${requireAuth()} disabled=${readonly} onChange=${(event) => setRequireAuth(event.target.checked)} />
+                    Require authentication
+                </label>
+                <label class="check">
+                    <input type="checkbox" checked=${injectAuth()} disabled=${readonly} onChange=${(event) => setInjectAuth(event.target.checked)} />
+                    Make the user available when signed in (|user_id|)
+                </label>
+                <${Field} label="Allowed roles" hint="Empty: any authenticated user. Write roles in lowercase.">
+                    <${Chips} value=${roles} placeholder="Add role…" readonly=${readonly} onChange=${(list) => (roles = list)} />
+                <//>
+            </section>
+
+            <section class="form-section">
+                <header><h3>Details</h3></header>
+                <${Field} label="Description">
+                    <textarea
+                        class="textarea"
+                        rows="2"
+                        readonly=${readonly}
+                        value=${description()}
+                        onInput=${(event) => setDescription(event.target.value)}
+                    ></textarea>
+                <//>
+                <${Field} label="File" hint=${isNew ? "Inside the project's endpoints folder" : undefined}>
+                    <input
+                        ref=${(el) => (fileInput = el)}
+                        class="input"
+                        name="file"
+                        placeholder="default.json"
+                        pattern=".+\\.json"
+                        readonly=${!isNew}
+                        value=${file()}
+                        onInput=${(event) => setFile(event.target.value)}
+                    />
+                <//>
+            </section>
+        </div>
+    `;
+
+    return html`
+        <div>
+            <div class="drawer-backdrop" onClick=${() => props.onDone(null)}></div>
+            <aside class="drawer" role="dialog" aria-label="Endpoint editor">
+                <header>
+                    <h2>${isNew ? "New endpoint" : endpoint.id}</h2>
+                    <div class="row">
+                        <${Tabs} tabs=${[["form", "Form"], ["json", "JSON"]]} value=${tab} onChange=${changeTab} />
+                        <button class="btn ghost small" type="button" aria-label="Close" onClick=${() => props.onDone(null)}><${Icon} name="x" /></button>
+                    </div>
+                </header>
+                <div class="drawer-body">
+                    <div hidden=${() => tab() !== "form"}>${form}</div>
+                    <div hidden=${() => tab() !== "json"}>
+                        <textarea
+                            class="textarea code"
+                            rows="22"
+                            spellcheck="false"
+                            readonly=${readonly}
+                            value=${() => json()}
+                            onInput=${(event) => setJson(event.target.value)}
+                        ></textarea>
+                        <small class="muted">Editing the JSON and saving sends it as is.</small>
+                    </div>
+                </div>
+                <footer>
+                    <${Show} when=${!readonly}>
+                        <button class="btn primary" type="button" onClick=${save}><${Icon} name="save" /> Save</button>
+                    <//>
+                    <${Show} when=${!isNew}>
+                        <a class="btn" href=${tryHref(endpoint.id)}><${Icon} name="play" /> Try</a>
+                    <//>
+                    <span class="spacer"></span>
+                    <${Show} when=${!isNew && !readonly}>
+                        <button class="btn danger" type="button" onClick=${remove}><${Icon} name="trash" /> Delete</button>
+                    <//>
+                </footer>
+            </aside>
+        </div>
+    `;
 }
-
-export { methodBadge };

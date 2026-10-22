@@ -80,7 +80,8 @@
             text-decoration: none;
         }
 
-        &[aria-current="page"] {
+        &[aria-current="page"],
+        &.active {
             background: var(--accent-soft);
             color: var(--accent);
         }

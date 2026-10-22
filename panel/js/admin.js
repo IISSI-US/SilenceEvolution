@@ -1,21 +1,21 @@
 // SilenceEvolution
 // Copyright (C) 2026 DEAL research group, Universidad de Sevilla
 
-// Admin panel entry point: session check, navigation, console and routing.
+// Admin panel entry point: session check, layout and routing (`@solidjs/router`, hash mode).
+
+import { createResource, Match, Switch } from "solid-js";
+import { render } from "solid-js/web";
+import html from "solid-js/html";
+import { A, HashRouter, Navigate, Route } from "@solidjs/router";
 
 import { api, clearSessionToken } from "./api.js";
-import { mountConsole } from "./console.js";
-import { h, icon, mount, loading } from "./dom.js";
-import { startRouter } from "./router.js";
+import { Console } from "./console.js";
+import { Icon, Loading } from "./ui.js";
 
-import * as endpoints from "./views/endpoints.js";
-import * as tests from "./views/tests.js";
-import * as users from "./views/users.js";
-import * as config from "./views/config.js";
-
-const page = document.getElementById("page");
-const nav = document.getElementById("nav");
-const footer = document.getElementById("sidebar-footer");
+import { Endpoints } from "./views/endpoints.js";
+import { Tests } from "./views/tests.js";
+import { Users } from "./views/users.js";
+import { Settings } from "./views/config.js";
 
 const SECTIONS = [
     { path: "/endpoints", label: "Endpoints", icon: "endpoints" },
@@ -24,19 +24,16 @@ const SECTIONS = [
     { path: "/config", label: "Settings", icon: "config" },
 ];
 
-const ROUTES = [
-    { pattern: "/endpoints", section: "/endpoints", view: () => endpoints.view() },
-    { pattern: "/endpoints/:id", section: "/endpoints", view: (params) => endpoints.view(params.id) },
-    { pattern: "/tests", section: "/tests", view: () => tests.view() },
-    { pattern: "/tests/new", section: "/tests", view: () => tests.view({ isNew: true }) },
-    { pattern: "/tests/new/:endpoint", section: "/tests", view: (params) => tests.view({ isNew: true, endpointId: params.endpoint }) },
-    { pattern: "/tests/:name", section: "/tests", view: (params) => tests.view({ name: params.name }) },
-    { pattern: "/users", section: "/users", view: () => users.view() },
-    { pattern: "/config", section: "/config", view: () => config.view() },
-];
+// Zero-argument functions passed as component props are turned into getters by `solid-js/html`
+// (they'd run immediately), so route components are wrapped in a one-parameter function.
+const page = (Component) => (props) => Component(props);
+
+const ToEndpoints = (_props) => html`<${Navigate} href="/endpoints" />`;
+
+const isAdmin = (session) => session?.role?.toLowerCase() === "admin";
 
 /** Resolves the current session; an authenticated non-admin user may become admin through bootstrap. */
-async function getSession() {
+async function fetchSession() {
     let session;
 
     try {
@@ -46,7 +43,7 @@ async function getSession() {
         return null;
     }
 
-    if (session.role?.toLowerCase() !== "admin") {
+    if (!isAdmin(session)) {
         try {
             const bootstrap = await api("GET", "/api/internal/bootstrap");
             session.role = bootstrap?.role ?? session.role;
@@ -67,80 +64,77 @@ async function logout() {
     location.replace("/auth2?redirect=/admin2");
 }
 
-function renderSidebar(session) {
-    mount(
-        footer,
-        h("div", { class: "whoami" }, h("strong", {}, session.name), h("span", {}, session.email)),
-        h("button", { class: "btn small", type: "button", onClick: logout }, icon("logout"), "Sign out"),
-    );
-
-    mount(
-        nav,
-        SECTIONS.map((section) => h("a", { href: "#" + section.path, dataset: { section: section.path } }, icon(section.icon), section.label)),
-    );
+function Shell(props) {
+    return html`
+        <div class="app">
+            <aside class="sidebar">
+                <div class="brand">Silence <small>admin</small></div>
+                <nav class="nav">${() => props.nav}</nav>
+                <div class="sidebar-footer">
+                    <div class="whoami">
+                        <strong>${() => props.session.name}</strong>
+                        <span>${() => props.session.email}</span>
+                    </div>
+                    <button class="btn small" type="button" onClick=${logout}><${Icon} name="logout" /> Sign out</button>
+                </div>
+            </aside>
+            <div class="main">
+                <main class="page">${() => props.children}</main>
+                <${Console} />
+            </div>
+        </div>
+    `;
 }
 
-function renderNotAdmin(session) {
-    nav.replaceChildren();
-
-    mount(
-        page,
-        h(
-            "div",
-            { class: "card card-body", style: { maxWidth: "560px" } },
-            h("h1", {}, "Admin role required"),
-            h(
-                "p",
-                { class: "muted", style: { marginTop: "8px" } },
-                `You're signed in as ${session.email}, but this account doesn't have the admin role. `,
-                "The first user to sign up becomes admin automatically. Otherwise, give this user the role in the internal database:",
-            ),
-            h(
-                "pre",
-                { class: "code-block", style: { marginTop: "12px" } },
-                `INSERT INTO silence_roles (user_id, role) VALUES (${Number(session.user_id)}, 'admin');`,
-            ),
-        ),
-    );
+function NotAdmin(props) {
+    return html`
+        <${Shell} session=${props.session}>
+            <div class="card card-body" style="max-width: 560px">
+                <h1>Admin role required</h1>
+                <p class="muted" style="margin-top: 8px">
+                    You're signed in as ${props.session.email}, but this account doesn't have the admin role. The first user to sign up
+                    becomes admin automatically. Otherwise, give this user the role in the internal database:
+                </p>
+                <pre class="code-block" style="margin-top: 12px">
+INSERT INTO silence_roles (user_id, role) VALUES (${Number(props.session.user_id)}, 'admin');</pre
+                >
+            </div>
+        <//>
+    `;
 }
 
-const session = await getSession();
+function App() {
+    const [session] = createResource(fetchSession);
 
-if (session) {
-    renderSidebar(session);
-    mountConsole(document.getElementById("console"));
+    // Layout shared by every route: navigation + page + console.
+    const Layout = (props) => html`
+        <${Shell}
+            session=${session}
+            nav=${SECTIONS.map(
+                (section) => html`<${A} href=${section.path} activeClass="active"><${Icon} name=${section.icon} /> ${section.label}<//>`,
+            )}
+        >
+            ${() => props.children}
+        <//>
+    `;
 
-    if (session.role?.toLowerCase() !== "admin") {
-        renderNotAdmin(session);
-    } else {
-        let renderId = 0;
-
-        startRouter(
-            ROUTES,
-            async (route, params) => {
-                const id = ++renderId;
-
-                for (const link of nav.querySelectorAll("a")) {
-                    link.toggleAttribute("aria-current", link.dataset.section === route.section);
-                    if (link.dataset.section === route.section) link.setAttribute("aria-current", "page");
-                }
-
-                mount(page, loading());
-
-                try {
-                    const content = await route.view(params);
-                    if (id === renderId) mount(page, content);
-                } catch (err) {
-                    if (id === renderId) {
-                        mount(page, h("div", { class: "alert danger" }, err?.message ?? String(err)));
-                    }
-                }
-            },
-            "/endpoints",
-        );
-    }
-
-    page.focus?.();
-} else {
-    mount(page, loading("Redirecting to sign in…"));
+    return html`
+        <${Switch} fallback=${html`<${Loading} text="Loading…" />`}>
+            <${Match} when=${() => session() === null}><${Loading} text="Redirecting to sign in…" /><//>
+            <${Match} when=${() => session() && !isAdmin(session())}><${NotAdmin} session=${session} /><//>
+            <${Match} when=${() => isAdmin(session())}>
+                <${HashRouter} root=${Layout}>
+                    <${Route} path="/" component=${ToEndpoints} />
+                    <${Route} path="/endpoints/:id?" component=${page(Endpoints)} />
+                    <${Route} path="/tests/new/:endpoint?" component=${page(Tests)} />
+                    <${Route} path="/tests/:name?" component=${page(Tests)} />
+                    <${Route} path="/users" component=${page(Users)} />
+                    <${Route} path="/config" component=${page(Settings)} />
+                    <${Route} path="*" component=${ToEndpoints} />
+                <//>
+            <//>
+        <//>
+    `;
 }
+
+render(() => html`<${App} />`, document.getElementById("root"));

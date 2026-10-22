@@ -3,90 +3,110 @@
 
 // Login / sign up page (`/auth2?redirect=/admin2`).
 
-import { api, ApiError, safeRedirect, setSessionToken } from "./api.js";
-import { h, mount } from "./dom.js";
+import { createResource, createSignal, Show } from "solid-js";
+import { render } from "solid-js/web";
+import html from "solid-js/html";
 
-const root = document.getElementById("auth");
-const redirect = safeRedirect(new URLSearchParams(location.search).get("redirect"), "/");
+import { api, safeRedirect, setSessionToken } from "./api.js";
+import { Field, Loading, Tabs } from "./ui.js";
 
-function field(label, props) {
-    return h("label", { class: "field" }, h("span", {}, label), h("input", { class: "input", required: true, ...props }));
+const search = new URLSearchParams(location.search);
+const redirect = safeRedirect(search.get("redirect"), "/");
+
+/** Resolves to true when there's already a valid session (then the page redirects). */
+async function hasSession() {
+    try {
+        await api("GET", "/api/internal/whoami");
+        location.replace(redirect);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
-function render(mode) {
-    const isLogin = mode === "login";
-    const error = h("div", { class: "alert danger", role: "alert", hidden: true });
-    const submit = h("button", { class: "btn primary", type: "submit" }, isLogin ? "Sign in" : "Create account");
+function AuthForm() {
+    const [mode, setMode] = createSignal(search.get("mode") === "signup" ? "signup" : "login");
+    const [error, setError] = createSignal(null);
+    const [busy, setBusy] = createSignal(false);
 
-    const password = field("Password", {
-        name: "password",
-        type: "password",
-        minlength: 4,
-        autocomplete: isLogin ? "current-password" : "new-password",
-    });
-    const passwordCheck = !isLogin && field("Repeat password", { name: "password_check", type: "password", autocomplete: "new-password" });
+    const isLogin = () => mode() === "login";
 
-    const form = h(
-        "form",
-        {
-            onSubmit: async (event) => {
-                event.preventDefault();
+    const submit = async (event) => {
+        event.preventDefault();
 
-                const data = Object.fromEntries(new FormData(form));
+        const data = Object.fromEntries(new FormData(event.currentTarget));
 
-                if (!isLogin && data.password !== data.password_check) {
-                    error.textContent = "Passwords do not match.";
-                    error.hidden = false;
-                    return;
-                }
+        if (!isLogin() && data.password !== data.password_check) {
+            setError("Passwords do not match.");
+            return;
+        }
 
-                delete data.password_check;
+        delete data.password_check;
 
-                submit.disabled = true;
-                error.hidden = true;
+        setBusy(true);
+        setError(null);
 
-                try {
-                    const response = await api("POST", isLogin ? "/api/internal/login" : "/api/internal/signup", data);
+        try {
+            const response = await api("POST", isLogin() ? "/api/internal/login" : "/api/internal/signup", data);
 
-                    // Sign up returns the token but doesn't set the session cookie.
-                    if (response?.token) setSessionToken(response.token);
+            // Sign up returns the token but doesn't set the session cookie.
+            if (response?.token) setSessionToken(response.token);
 
-                    location.replace(redirect);
-                } catch (err) {
-                    error.textContent = err instanceof ApiError ? err.message : String(err);
-                    error.hidden = false;
-                    submit.disabled = false;
-                }
-            },
-        },
-        error,
-        !isLogin && field("Name", { name: "name", autocomplete: "name", maxlength: 64 }),
-        field("Email", { name: "email", type: "email", autocomplete: "email", maxlength: 32 }),
-        password,
-        passwordCheck,
-        submit,
-    );
+            location.replace(redirect);
+        } catch (err) {
+            setError(err.message);
+            setBusy(false);
+        }
+    };
 
-    mount(
-        root,
-        h("div", { class: "brand" }, "Silence"),
-        h("p", { class: "subtitle" }, isLogin ? "Sign in to continue" : "Create a new account"),
-        h(
-            "div",
-            { class: "tabs", role: "tablist" },
-            h("button", { type: "button", role: "tab", "aria-selected": String(isLogin), onClick: () => render("login") }, "Sign in"),
-            h("button", { type: "button", role: "tab", "aria-selected": String(!isLogin), onClick: () => render("signup") }, "Sign up"),
-        ),
-        form,
-    );
-
-    form.querySelector("input")?.focus();
+    return html`
+        <div class="brand">Silence</div>
+        <p class="subtitle">${() => (isLogin() ? "Sign in to continue" : "Create a new account")}</p>
+        <${Tabs}
+            tabs=${[
+                ["login", "Sign in"],
+                ["signup", "Sign up"],
+            ]}
+            value=${mode}
+            onChange=${(value) => {
+                setError(null);
+                setMode(value);
+            }}
+        />
+        <form onSubmit=${submit}>
+            <${Show} when=${error}><div class="alert danger" role="alert">${error}</div><//>
+            <${Show} when=${() => !isLogin()}>
+                <${Field} label="Name"><input class="input" name="name" required autocomplete="name" maxlength="64" /><//>
+            <//>
+            <${Field} label="Email"><input class="input" name="email" type="email" required autocomplete="email" maxlength="32" /><//>
+            <${Field} label="Password">
+                <input
+                    class="input"
+                    name="password"
+                    type="password"
+                    required
+                    minlength="4"
+                    autocomplete=${() => (isLogin() ? "current-password" : "new-password")}
+                />
+            <//>
+            <${Show} when=${() => !isLogin()}>
+                <${Field} label="Repeat password">
+                    <input class="input" name="password_check" type="password" required autocomplete="new-password" />
+                <//>
+            <//>
+            <button class="btn primary" type="submit" disabled=${busy}>${() => (isLogin() ? "Sign in" : "Create account")}</button>
+        </form>
+    `;
 }
 
-// Skip the form when there's already a valid session.
-try {
-    await api("GET", "/api/internal/whoami");
-    location.replace(redirect);
-} catch {
-    render(new URLSearchParams(location.search).get("mode") === "signup" ? "signup" : "login");
+function Auth() {
+    const [session] = createResource(hasSession);
+
+    return html`
+        <${Show} when=${() => session() === false} fallback=${html`<${Loading} />`}>
+            <${AuthForm} />
+        <//>
+    `;
 }
+
+render(() => html`<${Auth} />`, document.getElementById("auth"));

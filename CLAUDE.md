@@ -55,8 +55,12 @@ bash ci/run_tests.sh [target/debug/silence]   # env: DB_HOST DB_PORT DB_USER DB_
 Rewrite of `frontend/` in plain HTML + Sass + ES modules, without Node/Bun. It lives side by side with the old panel until it covers everything.
 
 - `panel/admin.html`, `panel/auth.html`: served at `/admin2` and `/auth2` (hash routing: `/admin2#/endpoints`).
-- `panel/js/`: native ES modules, no bundler. `dom.js` (`h()` helper; text only via text nodes, never `innerHTML`), `highlight.js` (SQL/JSON), `ansi.js`, `router.js`, one module per view.
-- Migrating to Solid without a build step (issues #4–#10): components use `html` tagged templates from `solid-js/html` instead of JSX (`<${Show} when=${...}>…<//>`, reactive values as functions `${() => x()}`). `views/users.js` is the first view migrated.
+- `panel/js/`: native ES modules, no bundler, written with Solid without a build step: `html` tagged templates from `solid-js/html` instead of JSX. `admin.js` (session + `@solidjs/router` `HashRouter`), `ui.js` (shared components), `console.js`, `api.js`, `highlight.js`, `ansi.js`, `dom.js` (imperative toasts/confirm dialogs only), `views/*.js` (one component per route). Text is never inserted with `innerHTML`.
+- `solid-js/html` differs from JSX; these bit us:
+  - `${expr}` is evaluated once when the template is created. Reactive values must be functions: `${() => x()}` or the signal itself `${x}`.
+  - A zero-argument function passed as a component prop is read like `{fn()}` in JSX (it becomes a getter). To pass the function itself, wrap it (`resource=${() => data}`) or give it a parameter (`onDone=${(result) => ...}`). Route components are wrapped with `page()` in `admin.js` for this reason.
+  - Boolean props on components need an explicit value: `keyed=${true}` (a bare `keyed` arrives as `""`, i.e. false).
+  - Component children: `<${Comp} ...>…<//>`; a single function child is passed as is (`<${For} each=${list}>${(item) => html`…`}<//>`).
 - `panel/vendor/`: unmodified Solid / @solidjs/router ES modules mapped with an import map in the HTML; versions and update steps in `panel/vendor/README.md`.
 - Commits that address a review issue reference it (`Refs #N`, `Closes #N` when done).
 - `panel/styles/*.scss`: compiled by `build.rs` with the `grass` crate into `target/panel_styles/panel.css`, served at `/_silence/panel.css`. Other files are served at `/_silence/<path>`.

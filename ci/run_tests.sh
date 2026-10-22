@@ -773,7 +773,7 @@ req GET /auth2
 check "GET /auth2 loads the auth module" body_contains "/_silence/js/auth.js"
 req GET /_silence/panel.css
 check "GET /_silence/panel.css serves the compiled Sass" eval 'status_is 200 && header_matches "^content-type: *text/css" && body_contains ".sidebar"'
-for module in admin auth api dom router highlight ansi console views/endpoints views/tests views/users views/config; do
+for module in admin auth api dom ui highlight ansi console views/endpoints views/tests views/users views/config; do
     req GET "/_silence/js/$module.js"
     check "GET /_silence/js/$module.js is served as JavaScript" eval 'status_is 200 && header_matches "^content-type: *(text|application)/javascript"'
 done
