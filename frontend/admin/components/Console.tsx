@@ -61,7 +61,7 @@ export default () => {
                         ></div>
                     </div>
 
-                    <div class="flex flex-col min-h-0 h-full w-full bg-white/20 dark:bg-black/20 opacity-90 hover:bg-white/50 pointer-coarse:bg-white/50 dark:hover:bg-black/50 dark:pointer-coarse:bg-black/50 hover:opacity-100 border-t-2 border-base-300 backdrop-blur-sm hover:backdrop-blur-xl backdrop-brightness-90 rounded-t-4xl duration-200! pointer-events-auto">
+                    <div class="flex flex-col min-h-0 h-full w-full bg-base-100 opacity-90 hover:opacity-100 border-t-2 border-base-300 rounded-t-4xl duration-200! pointer-events-auto">
                         <div class="absolute top-1 left-1/2 -translate-x-1/2 -translate-y-4 w-32 h-1.25 bg-zinc-500 rounded-full pointer-coarse:hidden pointer-events-none"></div>
 
                         <div class="flex flex-col gap-2 h-full px-6 pt-4 text-sm font-mono">

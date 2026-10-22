@@ -31,7 +31,7 @@ export default (
             <div class="overflow-auto overscroll-contain">
                 <div class="grid grid-cols-1 box-border min-w-0 font-mono **:text-sm **:leading-6 overflow-hidden">
                     <div
-                        class="bg-base-200/75 p-3 border border-base-300 col-start-1 row-start-1 rounded-2xl w-full h-full inset-0 backdrop-brightness-125 backdrop-blur-xs pointer-events-none whitespace-pre-wrap wrap-break-word z-10 min-w-0 overflow-hidden"
+                        class="bg-base-200 p-3 border border-base-300 col-start-1 row-start-1 rounded-box w-full h-full inset-0 pointer-events-none whitespace-pre-wrap wrap-break-word z-10 min-w-0 overflow-hidden"
                         ref={async (element) => {
                             createEffect(async () => {
                                 element.innerHTML =

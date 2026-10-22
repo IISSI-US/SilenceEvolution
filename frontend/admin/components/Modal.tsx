@@ -20,7 +20,7 @@ export default (props: { parent_path: string } & ParentProps) => {
         <>
             <Portal>
                 <div
-                    class="overscroll-none antialiased fixed top-0 left-0 w-screen h-screen p-4 z-20 backdrop-blur-md backdrop-brightness-90 transition duration-500 [&_input]:rounded-2xl [&_input]:bg-base-200/75 [&_input]:backdrop-brightness-125 [&_input]:backdrop-blur-xs [&_textarea]:rounded-2xl"
+                    class="overscroll-none antialiased fixed top-0 left-0 w-screen h-screen p-4 z-20 bg-black/35 transition duration-500"
                     classList={{
                         "opacity-0 pointer-events-none":
                             expected_children() === undefined,
@@ -37,7 +37,7 @@ export default (props: { parent_path: string } & ParentProps) => {
                     >
                         <div
                             id="modal"
-                            class="relative lg:m-32 w-full min-h-fit max-h-screen px-4 bg-base-100/75 backdrop-blur-xs border-base-300 rounded-2xl border shadow-lg inset-shadow-sm inset-shadow-base-300/25 transition duration-500"
+                            class="relative lg:m-32 w-full min-h-fit max-h-screen px-4 bg-base-100 border-base-300 rounded-box border shadow-lg transition duration-500"
                             classList={{
                                 "opacity-0 scale-75":
                                     expected_children() === undefined,
@@ -46,9 +46,9 @@ export default (props: { parent_path: string } & ParentProps) => {
                                 event.stopPropagation();
                             }}
                         >
-                            <div class="absolute top-0 right-0 m-2 backdrop-blur-xs backdrop-brightness-105 shadow rounded-2xl z-50">
+                            <div class="absolute top-0 right-0 m-2 shadow rounded-box z-50">
                                 <button
-                                    class="btn btn-circle tooltip tooltip-left bg-base-300/50 border-[0.5px] border-base-200 backdrop-blur-xs shadow-xs scale-90 hover:bg-base-200"
+                                    class="btn btn-circle tooltip tooltip-left bg-base-300 border-[0.5px] border-base-200 shadow-xs scale-90 hover:bg-base-200"
                                     classList={{
                                         hidden:
                                             params["id"] === undefined ||
@@ -80,7 +80,7 @@ export default (props: { parent_path: string } & ParentProps) => {
                                     </span>
                                 </button>
                                 <A
-                                    class="btn btn-circle bg-base-300/50 border-[0.5px] border-base-200 backdrop-blur-xs shadow-xs scale-90 hover:bg-base-200"
+                                    class="btn btn-circle bg-base-300 border-[0.5px] border-base-200 shadow-xs scale-90 hover:bg-base-200"
                                     href={props.parent_path}
                                     noScroll
                                     replace={false}

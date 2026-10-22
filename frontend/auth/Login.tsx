@@ -82,7 +82,7 @@ export default () => {
                     <input
                         id="submit"
                         type="submit"
-                        class="btn btn-neutral btn-disabled mt-4 hover:shadow-xl"
+                        class="btn btn-neutral btn-disabled mt-4"
                         value="Login"
                     />
                 </fieldset>

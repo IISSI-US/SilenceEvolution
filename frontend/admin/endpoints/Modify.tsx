@@ -359,13 +359,13 @@ export default (_: RouteSectionProps) => {
                             <div class="overflow-auto overscroll-contain">
                                 <div class="grid grid-cols-1 box-border min-w-0 font-mono **:text-sm **:leading-6 overflow-hidden">
                                     <div
-                                        class="bg-base-200/75 p-3 border border-base-300 col-start-1 row-start-1 rounded-2xl w-full h-full inset-0 backdrop-brightness-125 backdrop-blur-xs pointer-events-none whitespace-pre-wrap wrap-break-word z-10 min-w-0 overflow-hidden"
+                                        class="bg-base-200 p-3 border border-base-300 col-start-1 row-start-1 rounded-box w-full h-full inset-0 pointer-events-none whitespace-pre-wrap wrap-break-word z-10 min-w-0 overflow-hidden"
                                         innerHTML={formatted_sql()}
                                     ></div>
                                     <textarea
                                         id="query"
                                         name="query"
-                                        class="bg-transparent p-3 border text-transparent caret-info col-start-1 row-start-1 whitespace-pre-wrap w-full min-h-14 not-focus:text-transparent z-20 min-w-0 outline-0  resize-none"
+                                        class="bg-transparent p-3 border text-transparent caret-info col-start-1 row-start-1 whitespace-pre-wrap w-full min-h-14 not-focus:text-transparent z-20 min-w-0 outline-0 resize-none"
                                         spellcheck="false"
                                         value={
                                             endpoint_by_file()
@@ -402,7 +402,7 @@ export default (_: RouteSectionProps) => {
                             </div>
                         </label>
 
-                        <details class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1">
+                        <details class="collapse bg-base-100 border border-base-300 rounded-box mt-3 my-1">
                             <summary class="collapse-title font-semibold transition duration-200 hover:bg-base-200">
                                 Extras
                             </summary>
@@ -584,7 +584,7 @@ export default (_: RouteSectionProps) => {
                             {endpoint_by_file() ? "Update" : "Create endpoint"}
                         </button>
                         <div
-                            class="py-2 btn btn-ghost bg-base-200 border border-base-300 rounded-2xl flex items-baseline-last gap-2"
+                            class="py-2 btn btn-ghost bg-base-200 border border-base-300 rounded-box flex items-baseline-last gap-2"
                             onClick={(_) => {
                                 set_raw_schema_mode(!get_raw_schema_mode());
                             }}

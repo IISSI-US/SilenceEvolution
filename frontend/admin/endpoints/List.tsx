@@ -128,7 +128,7 @@ export default (props: RouteSectionProps) => {
                 <div class="flex flex-col gap-3 pb-3 items-center w-full">
                     <div class="flex not-lg:flex-col not-lg:gap-3 items-center w-full">
                         <h1 class="text-4xl font-bold">Endpoints</h1>
-                        <div class="flex gap-2 self-end text-right ml-auto items-center *:rounded-2xl">
+                        <div class="flex gap-2 self-end text-right ml-auto items-center">
                             <A
                                 class="btn text-sm self-end text-right ml-auto"
                                 href="/endpoints/new"
@@ -282,7 +282,7 @@ export default (props: RouteSectionProps) => {
                                     </div>
                                 </div>
                             </div>
-                            <div class="table-row-group [&>div:nth-of-type(even)]:bg-base-200 [&>div]:hover:bg-base-300/80! [&>div]:transition [&>div]:duration-200 [&>div]:hover:scale-101 [&>div]:hover:cursor-pointer">
+                            <div class="table-row-group [&>div:nth-of-type(even)]:bg-base-200 [&>div]:hover:bg-base-300! [&>div]:transition [&>div]:duration-200 [&>div]:hover:scale-101 [&>div]:hover:cursor-pointer">
                                 <Index
                                     each={endpoints_list()}
                                     fallback={
@@ -543,7 +543,7 @@ export default (props: RouteSectionProps) => {
                                             </div>
                                             <ul
                                                 id={`endpoint-row-${ix}-dropdown`}
-                                                class="dropdown menu w-1/4 rounded-box bg-base-200/25 border-base-300 border backdrop-blur-sm backdrop-brightness-110 shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
+                                                class="dropdown menu w-1/4 rounded-box bg-base-200 border-base-300 border shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
                                                 classList={{
                                                     hidden:
                                                         resolved_children() !==

@@ -126,7 +126,7 @@ export default (_: RouteSectionProps) => {
 
                 <Show when={error() != undefined}>
                     <div
-                        class="bg-red-800 border-red-400 backdrop-blur shadow-xl rounded-box my-2 p-2 text-center cursor-pointer"
+                        class="bg-red-800 border-red-400 shadow-sm rounded-box my-2 p-2 text-center cursor-pointer"
                         onClick={() => set_error(undefined)}
                     >
                         <p class="text-sm font-semibold">

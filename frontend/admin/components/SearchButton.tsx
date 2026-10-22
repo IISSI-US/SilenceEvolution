@@ -27,7 +27,7 @@ export default (props: {
             </button>
             <ul
                 id="search-dropdown"
-                class="dropdown menu w-64 rounded-box bg-base-200/25 border-base-300 border backdrop-blur-sm backdrop-brightness-110 shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
+                class="dropdown menu w-64 rounded-box bg-base-200 border-base-300 border shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
                 style="position-anchor:--search-dropdown; inset: auto; align-self: anchor-center; justify-self: anchor-left; margin: 0.5rem;"
                 onMouseLeave={(event) =>
                     (event.currentTarget as HTMLUListElement).togglePopover()
