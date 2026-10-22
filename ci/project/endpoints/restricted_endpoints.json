@@ -1,0 +1,54 @@
+[
+  {
+    "id": "freeAccess",
+    "database": "main",
+    "route": "departments/freeAccess",
+    "version": "v1",
+    "method": "get",
+    "description": "Ported from Silence-CI-Project: no auth required.",
+    "execute": { "queries": [ { "query": "SELECT * FROM departments" } ] }
+  },
+  {
+    "id": "onlyLogged",
+    "database": "main",
+    "route": "departments/onlyLogged",
+    "version": "v1",
+    "method": "get",
+    "description": "Ported from Silence-CI-Project: any logged user.",
+    "require_auth": true,
+    "execute": { "queries": [ { "query": "SELECT * FROM departments" } ] }
+  },
+  {
+    "id": "onlyManagerOrCEO",
+    "database": "main",
+    "route": "departments/onlyManagerOrCEO",
+    "version": "v1",
+    "method": "get",
+    "description": "Ported from Silence-CI-Project: roles Manager or CEO (mixed case, as in the old project).",
+    "require_auth": true,
+    "allowed_roles": ["Manager", "CEO"],
+    "execute": { "queries": [ { "query": "SELECT * FROM departments" } ] }
+  },
+  {
+    "id": "onlyCEO",
+    "database": "main",
+    "route": "departments/onlyCEO",
+    "version": "v1",
+    "method": "get",
+    "description": "Ported from Silence-CI-Project: role CEO only (mixed case, as in the old project).",
+    "require_auth": true,
+    "allowed_roles": ["CEO"],
+    "execute": { "queries": [ { "query": "SELECT * FROM departments" } ] }
+  },
+  {
+    "id": "onlyCEOLowercase",
+    "database": "main",
+    "route": "departments/onlyCEOLowercase",
+    "version": "v1",
+    "method": "get",
+    "description": "Same as onlyCEO, with the role written in lowercase.",
+    "require_auth": true,
+    "allowed_roles": ["ceo"],
+    "execute": { "queries": [ { "query": "SELECT * FROM departments" } ] }
+  }
+]
