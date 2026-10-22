@@ -1,135 +1,157 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
-import { createSignal, Show } from "solid-js";
-
-import { Portal } from "solid-js/web";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 
 import Convert from "ansi-to-html";
 import Icon from "@admin/components/Icon";
 
+const HEADER_HEIGHT = 36;
+const DEFAULT_HEIGHT = 240;
+const MAX_LINES = 2000;
+const STORAGE_KEY = "console_height";
+
+const stored_height = () => {
+    try {
+        return Number(localStorage.getItem(STORAGE_KEY)) || DEFAULT_HEIGHT;
+    } catch {
+        return DEFAULT_HEIGHT;
+    }
+};
+
+/**
+ * Server log, docked at the bottom of the panel. It's streamed by the server as Server-Sent
+ * Events from `/_setup/console` (see `src/setup.rs`). The top edge can be dragged to resize it;
+ * the buttons expand it to most of the screen or collapse it to its header.
+ */
 export default () => {
-    let console_stream: HTMLDivElement | undefined = undefined;
-    let root_pseudocontainer: HTMLDivElement | undefined = undefined;
+    let log: HTMLDivElement | undefined;
 
-    const [error, set_error] = createSignal<boolean>();
+    const [height, set_height] = createSignal(stored_height());
+    const [collapsed, set_collapsed] = createSignal(false);
+    const [connected, set_connected] = createSignal<boolean | undefined>();
 
-    const socket = new WebSocket("/", "ConsoleStream");
+    const visible_height = () => (collapsed() ? HEADER_HEIGHT : height());
 
-    socket.onmessage = async (msg: MessageEvent<Blob>) => {
-        let paragraph = document.createElement("p");
+    // The page leaves room for the console at its bottom.
+    createEffect(() =>
+        document.documentElement.style.setProperty(
+            "--console-height",
+            `${visible_height()}px`,
+        ),
+    );
 
-        const convert = new Convert();
-
-        paragraph.innerHTML = convert.toHtml(
-            new TextDecoder().decode(await msg.data.bytes()),
+    const resize = (value: number) => {
+        const clamped = Math.min(
+            Math.max(value, HEADER_HEIGHT + 60),
+            window.innerHeight - 80,
         );
-
-        console_stream!.append(paragraph);
-
-        console_stream!.lastElementChild!.scrollIntoView({
-            behavior: "smooth",
-            block: "end",
-        });
+        set_height(clamped);
+        set_collapsed(false);
+        try {
+            localStorage.setItem(STORAGE_KEY, String(clamped));
+        } catch {}
     };
 
-    socket.onerror = (_) => {
-        set_error(true);
+    const start_drag = (event: PointerEvent) => {
+        event.preventDefault();
+
+        const move = (move_event: PointerEvent) =>
+            resize(window.innerHeight - move_event.clientY);
+        const stop = () => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", stop);
+        };
+
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", stop);
     };
 
-    document.addEventListener("keydown", (event) => {
-        if (event.metaKey && event.key === "/")
-            root_pseudocontainer!.style.height = "0vh";
-    });
+    // Log lines are text: ANSI colors become spans, anything else is escaped.
+    const convert = new Convert({ escapeXML: true });
+
+    const append = (line: string) => {
+        if (!log) return;
+
+        const at_bottom =
+            log.scrollHeight - log.scrollTop - log.clientHeight < 24;
+
+        const row = document.createElement("div");
+        row.innerHTML = convert.toHtml(line);
+        log.append(row);
+
+        while (log.childElementCount > MAX_LINES)
+            log.firstElementChild?.remove();
+
+        if (at_bottom) log.scrollTop = log.scrollHeight;
+    };
+
+    const events = new EventSource("/_setup/console");
+    events.onopen = () => set_connected(true);
+    events.onmessage = (event) => append(event.data);
+    events.onerror = () => set_connected(false);
+    onCleanup(() => events.close());
 
     return (
-        <>
-            <Portal>
-                <div class="overscroll-none antialiased fixed flex flex-col w-screen h-screen inset-0 z-50 **:transition-all **:transition-discrete **:ease-in-out **:duration-800 pointer-events-none">
-                    <div class="w-full flex justify-end">
-                        <div
-                            class="relative w-2 h-screen pointer-coarse:h-[90vh] min-h-[5vh] max-h-screen pointer-coarse:max-h-[90vh] scale-x-[500] opacity-0 resize-y overflow-hidden origin-bottom-right pointer-events-auto cursor-ns-resize active:transition-none [clip-path:inset(calc(100%-24px)_0_0_0)]"
-                            onClick={(_) => {
-                                if (
-                                    root_pseudocontainer!.style.height ===
-                                        undefined ||
-                                    root_pseudocontainer!.clientHeight >=
-                                        window.innerHeight
-                                )
-                                    root_pseudocontainer!.style.height = "80vh";
-                            }}
-                            ref={root_pseudocontainer}
-                        ></div>
-                    </div>
-
-                    <div class="flex flex-col min-h-0 h-full w-full bg-base-100 opacity-90 hover:opacity-100 border-t-2 border-base-300 rounded-t-4xl duration-200! pointer-events-auto">
-                        <div class="absolute top-1 left-1/2 -translate-x-1/2 -translate-y-4 w-32 h-1.25 bg-zinc-500 rounded-full pointer-coarse:hidden pointer-events-none"></div>
-
-                        <div class="flex flex-col gap-2 h-full px-6 pt-4 text-sm font-mono">
-                            <div class="flex items-center">
-                                <div class="flex gap-3 self-start text-left mr-auto items-center">
-                                    <div class="inline-grid *:[grid-area:1/1]">
-                                        <div
-                                            class="status status-success animate-ping"
-                                            classList={{
-                                                "status-error!": error(),
-                                            }}
-                                        ></div>
-                                        <div
-                                            class="status status-success"
-                                            classList={{
-                                                "status-error!": error(),
-                                            }}
-                                        ></div>
-                                    </div>
-                                    <span class="font-black tracking-wider">
-                                        CONSOLE
-                                    </span>
-                                </div>
-                                <div class="flex gap-3 self-end text-right ml-auto items-center">
-                                    <button
-                                        class="hover:scale-105 duration-200!"
-                                        onClick={() => {
-                                            console_stream!.innerHTML = "";
-                                        }}
-                                    >
-                                        CLEAR
-                                    </button>
-                                    <button
-                                        class="align-middle hover:scale-105 duration-200!"
-                                        onClick={() => {
-                                            root_pseudocontainer!.style.height =
-                                                "100vh";
-                                        }}
-                                    >
-                                        <Icon name="panel-close" />
-                                    </button>
-                                    <button
-                                        class="align-middle hover:scale-105 duration-200!"
-                                        onClick={() => {
-                                            root_pseudocontainer!.style.height =
-                                                "0vh";
-                                        }}
-                                    >
-                                        <Icon name="expand" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="border-t border-t-base-300"></div>
-
-                            <div class="overflow-y-auto mb-2 text-sm/5 text-black dark:text-white **:whitespace-pre-wrap **:wrap-break-word">
-                                <Show when={error()}>
-                                    <p class="text-error font-bold">
-                                        Couldn't connect to socket.
-                                    </p>
-                                </Show>
-                                <div ref={console_stream}></div>
-                            </div>
-                        </div>
-                    </div>
+        <div
+            class="fixed bottom-0 inset-x-0 z-[5] lg:pl-20 flex flex-col bg-base-100 border-t border-base-300"
+            style={{ height: `${visible_height()}px` }}
+        >
+            <div
+                class="h-1.5 -mt-1 cursor-ns-resize hover:bg-base-300"
+                title="Drag to resize"
+                onPointerDown={start_drag}
+            ></div>
+            <div class="flex items-center gap-3 px-4 shrink-0 h-8 text-xs font-mono">
+                <span
+                    class="status"
+                    classList={{
+                        "status-success": connected() === true,
+                        "status-error": connected() === false,
+                    }}
+                ></span>
+                <span class="font-bold tracking-wider">CONSOLE</span>
+                <Show when={connected() === false}>
+                    <span class="text-error">Disconnected, reconnecting…</span>
+                </Show>
+                <div class="ml-auto flex items-center gap-1">
+                    <button
+                        class="btn btn-ghost btn-xs"
+                        onClick={() => log?.replaceChildren()}
+                    >
+                        Clear
+                    </button>
+                    <button
+                        class="btn btn-ghost btn-xs"
+                        title="Expand"
+                        onClick={() =>
+                            resize(
+                                height() >= window.innerHeight * 0.6 &&
+                                    !collapsed()
+                                    ? DEFAULT_HEIGHT
+                                    : window.innerHeight * 0.7,
+                            )
+                        }
+                    >
+                        <Icon name="expand" class="size-4" />
+                    </button>
+                    <button
+                        class="btn btn-ghost btn-xs"
+                        title={collapsed() ? "Show" : "Collapse"}
+                        onClick={() => set_collapsed(!collapsed())}
+                    >
+                        <Icon
+                            name={collapsed() ? "chevron-up" : "chevron"}
+                            class="size-4"
+                        />
+                    </button>
                 </div>
-            </Portal>
-        </>
+            </div>
+            <div
+                ref={log}
+                class="flex-1 min-h-0 overflow-y-auto px-4 pb-2 font-mono text-xs/5 whitespace-pre-wrap break-words border-t border-base-300"
+                classList={{ hidden: collapsed() }}
+            ></div>
+        </div>
     );
 };

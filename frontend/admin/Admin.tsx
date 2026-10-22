@@ -192,7 +192,7 @@ export default (props: RouteSectionProps) => {
                             </div>
                         </div>
                     </nav>
-                    <div class="absolute top-0 left-0 p-8 px-3 lg:pl-26 lg:pr-8 pt-24 w-screen h-screen z-0">
+                    <div class="absolute top-0 left-0 p-8 px-3 lg:pl-26 lg:pr-8 pt-24 w-screen h-screen z-0 overflow-y-auto pb-[calc(var(--console-height,0px)+2rem)]!">
                         <Show when={session() !== undefined}>
                             <Show
                                 when={session()!.connected}
@@ -237,12 +237,15 @@ export default (props: RouteSectionProps) => {
                                     }
                                 >
                                     {props.children}
-                                    <Console />
                                 </Show>
                             </Show>
                         </Show>
                     </div>
                 </div>
+                {/* The console is available in setup mode too (to see why a connection fails). */}
+                <Show when={session()?.local || session()?.role === "admin"}>
+                    <Console />
+                </Show>
                 <div class="drawer-side is-drawer-close:overflow-visible z-10">
                     <label
                         for="app-drawer"

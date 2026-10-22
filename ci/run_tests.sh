@@ -834,6 +834,15 @@ req GET /api/v1/departments
 check "after loading, the generated endpoints are served" jq_ok 'length >= 3'
 req PUT /_setup/config '{}'
 check "the setup settings can't be changed once connected" status_is 409
+# Subscribe, then make the server log something (a request) while the stream is open.
+curl -sN --max-time 4 -D - "$BASE/_setup/console" > "$WORK_DIR/console.out" 2>/dev/null &
+CONSOLE_CURL=$!
+sleep 1
+req GET /api/internal/admin/users
+wait "$CONSOLE_CURL" || true
+CONSOLE_OUT="$(cat "$WORK_DIR/console.out")"
+check "GET /_setup/console streams the log as Server-Sent Events" grep -qi "content-type: *text/event-stream" <<<"$CONSOLE_OUT"
+check "the console stream carries log lines" grep -q "^data: " <<<"$CONSOLE_OUT"
 
 BASE="$MAIN_BASE"
 kill "$SETUP_PID" 2>/dev/null || true

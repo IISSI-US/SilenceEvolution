@@ -14,12 +14,19 @@ static CONSOLE_TRACING_TX: OnceCell<broadcast::Receiver<Bytes>> = OnceCell::cons
 #[display("Console stream.")]
 pub struct ConsoleStream;
 
+/// Subscribes to the console's log lines (the admin panel reads them as Server-Sent Events from
+/// `/_setup/console`, see `setup.rs`). `None` before logging is set up.
+pub fn subscribe() -> Option<broadcast::Receiver<Bytes>> {
+    CONSOLE_TRACING_TX.get().map(|rx| rx.resubscribe())
+}
+
 #[derive(Clone)]
 pub struct ConsoleTracingWriter(broadcast::Sender<Bytes>);
 
 impl ConsoleTracingWriter {
     pub async fn new() -> Self {
-        let (tx, rx) = broadcast::channel::<Bytes>(1);
+        // Enough room for bursts of log lines (with 1, slow readers skipped most of them).
+        let (tx, rx) = broadcast::channel::<Bytes>(512);
 
         let _ = CONSOLE_TRACING_TX.get_or_init(async || rx).await;
 

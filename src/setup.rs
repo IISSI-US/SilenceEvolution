@@ -213,6 +213,7 @@ pub async fn list_databases(credentials: &ServerCredentials) -> Result<Vec<Serve
 /// - `GET config` / `PUT config` (a config patch): the project's settings, before connecting.
 /// - `POST databases` (`{host, username, password}`): the databases of that server.
 /// - `POST connect`: connects to the configured databases.
+/// - `GET console`: the server's log as Server-Sent Events (one `data:` line per log line).
 pub async fn handle(request: Request<BoxBody<ConnBytes, eyre::Error>>) -> Response<ConnBody> {
     let method = request.method().to_owned();
     let path = request.uri().path().trim_matches('/').to_owned();
@@ -291,6 +292,40 @@ pub async fn handle(request: Request<BoxBody<ConnBytes, eyre::Error>>) -> Respon
                 Ok(databases) => reply(200, serde_json::to_value(databases).unwrap_or_default()),
                 Err(err) => error(400, format!("Cannot connect to the server. {:#}", err)),
             }
+        }
+        (hyper::Method::GET, "_setup/console") => {
+            let Some(receiver) = console::subscribe() else {
+                return error(503, "The console isn't available.".into());
+            };
+
+            let events = futures::stream::unfold(receiver, |mut receiver| async move {
+                let text = match receiver.recv().await {
+                    Ok(entry) => String::from_utf8_lossy(&entry).into_owned(),
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        format!("[{} log lines skipped]", skipped)
+                    }
+                    Err(_) => return None,
+                };
+
+                let event = text
+                    .trim_end_matches('\n')
+                    .split('\n')
+                    .map(|line| format!("data: {}\n", line))
+                    .collect::<String>()
+                    + "\n";
+
+                Some((
+                    Ok::<_, eyre::Error>(hyper::body::Frame::data(ConnBytes::from(event))),
+                    receiver,
+                ))
+            });
+
+            Response::builder()
+                .status(200)
+                .header("Content-Type", "text/event-stream")
+                .header("Cache-Control", "no-store")
+                .body(BoxBody::new(http_body_util::StreamBody::new(events)))
+                .unwrap()
         }
         (hyper::Method::POST, "_setup/connect") => {
             let config = AppCx::acquire().config().read().await.to_owned();

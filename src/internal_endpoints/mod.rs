@@ -6,7 +6,6 @@ pub mod console;
 pub mod mysql_proxy;
 
 use admin::*;
-use console::*;
 use mysql_proxy::*;
 
 use crate::*;
@@ -390,16 +389,8 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
             .auth(admin_auth())
             .build()
             .unwrap(),
-        EndpointBuilder::default()
-            .id("ConsoleStream".into())
-            .execution_target(ExecutionTarget::Socket(SocketTargetBuilder::default()
-                .executor(Arc::new(ConsoleStream))
-                .build()
-                .unwrap()
-            ))
-            .description("Streams Silence's console log.".into())
-            .build()
-            .unwrap(),
+        // The console is served as Server-Sent Events by `/_setup/console` (local admin only):
+        // browsers couldn't connect to the `ConsoleStream` websocket.
     ]))
 });
 
