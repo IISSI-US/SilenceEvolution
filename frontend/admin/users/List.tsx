@@ -1,6 +1,11 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
+import {
+    authenticate_test_user,
+    logout_test_user,
+    test_user,
+} from "@admin/TestUser";
 import AppCx from "@admin/AppCx";
 
 import { type User } from "@admin/users";
@@ -98,6 +103,14 @@ export default (props: RouteSectionProps) => {
     // A sub-route (edit, test...) is shown as a full page that replaces the list.
     const sub_page = children(() => props.children);
 
+    const authenticate = async (user_id: number) => {
+        try {
+            await authenticate_test_user(user_id);
+        } catch (err) {
+            set_alert({ value: (err as Error).message, is_error: true });
+        }
+    };
+
     return (
         <>
             <Show when={sub_page() !== undefined}>
@@ -181,7 +194,7 @@ export default (props: RouteSectionProps) => {
                                     />
                                     <div class="table-cell">Role</div>
                                     <div class="table-cell rounded-tr-xl!">
-                                        Password
+                                        Tests
                                     </div>
                                 </div>
                             </div>
@@ -224,8 +237,41 @@ export default (props: RouteSectionProps) => {
                                             <div class="table-cell">
                                                 {user().role ?? "—"}
                                             </div>
-                                            <div class="table-cell [&_span]:hidden after:content-['********'] after:text-base-content hover:[&_span]:block hover:after:hidden pr-4!">
-                                                <span>{user().password}</span>
+                                            {/* Tests run as the authenticated user (see TestUser.tsx). */}
+                                            <div class="table-cell pr-4!">
+                                                <Show
+                                                    when={
+                                                        test_user()?.user_id ===
+                                                        user().user_id
+                                                    }
+                                                    fallback={
+                                                        <button
+                                                            class="btn btn-xs"
+                                                            onClick={(
+                                                                event,
+                                                            ) => {
+                                                                event.stopPropagation();
+                                                                authenticate(
+                                                                    user()
+                                                                        .user_id!,
+                                                                );
+                                                            }}
+                                                        >
+                                                            Authenticate
+                                                        </button>
+                                                    }
+                                                >
+                                                    <button
+                                                        class="btn btn-xs btn-primary"
+                                                        title="Tests run as this user. Click to sign out."
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            logout_test_user();
+                                                        }}
+                                                    >
+                                                        Authenticated ✓
+                                                    </button>
+                                                </Show>
                                             </div>
                                         </div>
                                     )}

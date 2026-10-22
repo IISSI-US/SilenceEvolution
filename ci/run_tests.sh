@@ -455,6 +455,13 @@ auth_req "$ADMIN_TOKEN" PUT "/api/internal/admin/users/$CAROL_ID" "$(json '{name
 check "updating a user with an empty password succeeds" status_is 200
 req POST /api/internal/login "$(json '{email: "carol@company.com", password: "carol"}')"
 check "an empty password on update keeps the current one" status_is 200
+req POST "/api/internal/admin/users/$CAROL_ID/session"
+check "the admin API opens a session for a user (Authenticate in Users)" jq_ok '.email == "carol@company.com" and (.token | length == 32)'
+CAROL_TOKEN="$(jq -r '.token // empty' <<<"$BODY")"
+auth_req "$CAROL_TOKEN" GET /api/internal/whoami
+check "the opened session authenticates as that user" jq_ok '.email == "carol@company.com" and .role == "user"'
+req POST /api/internal/admin/users/999999/session
+check "opening a session for a missing user is an error" status_is_error
 
 # ---------------------------------------------------------------------------
 # Roles  (old: test_roles.py; restricted_endpoints.json)

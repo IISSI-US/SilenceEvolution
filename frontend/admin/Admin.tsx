@@ -1,7 +1,7 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
-import { test_user } from "@admin/TestUser";
+import { logout_test_user, test_user } from "@admin/TestUser";
 import Setup from "@admin/Setup";
 import AppCx from "@admin/AppCx";
 
@@ -95,29 +95,46 @@ export default (props: RouteSectionProps) => {
                                             </span>
                                         </span>
                                         {/* User the tests run as (see TestUser.tsx). */}
-                                        <A
-                                            href="/authentication"
-                                            class="text-xs font-semibold px-3 text-base-content/70 hover:underline"
-                                        >
-                                            <Show
-                                                when={test_user()}
-                                                fallback="Testing as an anonymous user"
+                                        <div class="flex items-center gap-2 px-3">
+                                            <A
+                                                href="/users"
+                                                class="text-xs font-semibold text-base-content/70 hover:underline"
                                             >
-                                                Testing as{" "}
-                                                <span class="font-black">
-                                                    {test_user()!.name}
-                                                </span>
-                                                <Show when={test_user()!.email}>
-                                                    {" "}
-                                                    ({test_user()!.email})
+                                                <Show
+                                                    when={test_user()}
+                                                    fallback="Testing as an anonymous user"
+                                                >
+                                                    Testing as{" "}
+                                                    <span class="font-black">
+                                                        {test_user()!.name}
+                                                    </span>
+                                                    <Show
+                                                        when={
+                                                            test_user()!.email
+                                                        }
+                                                    >
+                                                        {" "}
+                                                        ({test_user()!.email})
+                                                    </Show>
+                                                    , role{" "}
+                                                    <span class="font-black">
+                                                        {test_user()!.role ??
+                                                            "none"}
+                                                    </span>
                                                 </Show>
-                                                , role{" "}
-                                                <span class="font-black">
-                                                    {test_user()!.role ??
-                                                        "none"}
-                                                </span>
+                                            </A>
+                                            <Show when={test_user()}>
+                                                <button
+                                                    class="btn btn-ghost btn-xs"
+                                                    title="Sign out: tests run as an anonymous user"
+                                                    onClick={() =>
+                                                        logout_test_user()
+                                                    }
+                                                >
+                                                    Sign out
+                                                </button>
                                             </Show>
-                                        </A>
+                                        </div>
                                     </div>
                                 </Show>
                             </div>
@@ -278,19 +295,6 @@ export default (props: RouteSectionProps) => {
                                     <Icon name="users" class="scale-95" />
                                     <span class="is-drawer-close:hidden">
                                         Users
-                                    </span>
-                                </A>
-                            </li>
-                            <li
-                                classList={{
-                                    "pointer-events-none opacity-40":
-                                        session()?.connected === false,
-                                }}
-                            >
-                                <A href="/authentication">
-                                    <Icon name="key" class="scale-95" />
-                                    <span class="is-drawer-close:hidden">
-                                        Auth
                                     </span>
                                 </A>
                             </li>

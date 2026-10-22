@@ -69,23 +69,25 @@ export const adopt_token = async (token: string) => {
     }
 };
 
-/** Signs in as a user of the app (POST /api/internal/login). Throws with the server's message. */
-export const login_test_user = async (email: string, password: string) => {
-    const res = await fetch("/api/internal/login", {
+/**
+ * Opens a session for a user of the app from the admin API (no password needed) and makes it the
+ * test user. Throws with the server's message.
+ */
+export const authenticate_test_user = async (user_id: number) => {
+    const res = await fetch(`/api/internal/admin/users/${user_id}/session`, {
         method: "POST",
         headers: { "Cache-Control": "no-cache" },
-        body: JSON.stringify({ email, password }),
-        credentials: "omit",
     });
 
-    const body = (await res.json().catch(() => ({}))) as {
-        token?: string;
+    const body = (await res.json().catch(() => ({}))) as Partial<TestUser> & {
         error?: string;
     };
 
-    if (!res.ok || !body.token) throw new Error(body.error ?? "Login failed.");
+    if (!res.ok || !body.token) {
+        throw new Error(body.error ?? "Cannot authenticate the user.");
+    }
 
-    await adopt_token(body.token);
+    set_test_user(body as TestUser);
 };
 
 /** Ends the test user's session (GET /api/internal/logout) and forgets it. */

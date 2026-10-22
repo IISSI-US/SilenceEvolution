@@ -151,3 +151,51 @@ impl AnyHttpExecutor for MySQLUserProxy {
             .await
     }
 }
+
+/// Proxy for the endpoint that opens a session for a user from the admin panel (to run tests as
+/// that user): generates the token as Waveless does (32 alphanumeric characters) and injects it as
+/// the internal param `new_token`.
+#[derive(
+    Clone, PartialEq, Constructor, Serialize, Deserialize, BoxedAny, Getters, Display, Debug,
+)]
+#[display("SQL session proxy: {:?}", _0)]
+#[getset(get = "pub")]
+#[serde(transparent)]
+pub struct MySQLSessionProxy(MySQLExecutorProxy);
+
+impl AnyExt for MySQLSessionProxy {
+    fn name(&self) -> &str {
+        "silence_mysql_session_proxy"
+    }
+}
+
+#[typetag::serde(name = "MySQLSessionProxy")]
+#[async_trait]
+impl AnyHttpExecutor for MySQLSessionProxy {
+    async fn execute(&self, cx: PipelineCx, db_conns: DbConns) -> PipelineResult {
+        use rand::distr::{Alphanumeric, SampleString};
+
+        let MySQLSessionProxy(proxy) = self;
+
+        let PipelineCx { mut request, .. } = cx;
+
+        let RequestCx { request_params, .. } = &mut request;
+
+        let token = Alphanumeric.sample_string(&mut rand::rng(), 32);
+
+        request_params.insert(
+            "new_token".to_compact_string(),
+            ParamValue::Internal(token.to_compact_string()),
+        );
+
+        proxy
+            .execute(
+                PipelineCx {
+                    request,
+                    response: None,
+                },
+                db_conns,
+            )
+            .await
+    }
+}

@@ -153,6 +153,27 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
             .build()
             .unwrap(),
         EndpointBuilder::default()
+            .id("AuthenticateUser".into())
+            .databases(CheapVec::from_iter(["internal".into()]))
+            .execution_target(ExecutionTarget::Http(HttpTargetBuilder::default()
+                .route("users/{id}/session".into())
+                .version("internal/admin".into())
+                .method(HttpMethod::Post)
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLSessionProxy::new(MySQLExecutorProxy::new(
+                   SQLQueryWrapper::Many { database: None, queries: CheapVec::from_iter([
+                       SQLQuery::new("INSERT INTO |sessions_target_table| (token_id, user_id, created_at) VALUES ('|new_token|', {id}, UTC_TIMESTAMP())".into(), false, SQLBehaviour::Permissive),
+                       SQLQuery::new("SELECT '|new_token|' AS token, users.user_id, users.name, users.email, roles.role FROM |users_target_table| as users LEFT JOIN |roles_target_table| as roles ON (roles.user_id = users.user_id) WHERE (users.user_id = {id})".into(), true, SQLBehaviour::Unique),
+                   ]) }.into()
+                ))), Default::default()))
+                .auto_generated(true)
+                .build()
+                .unwrap()
+            ))
+            .description("Opens a session for a user (to run the panel's tests as that user) and returns its token.".into())
+            .auth(admin_auth())
+            .build()
+            .unwrap(),
+        EndpointBuilder::default()
             .id("DeleteRole".into())
             .databases(CheapVec::from_iter(["internal".into()]))
             .execution_target(ExecutionTarget::Http(HttpTargetBuilder::default()

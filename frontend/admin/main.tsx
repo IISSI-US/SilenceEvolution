@@ -1,7 +1,6 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
-import Authentication from "@admin/Authentication";
 import { AppCxProvider } from "@admin/AppCx";
 
 import Admin from "@admin/Admin";
@@ -53,7 +52,6 @@ render(
                     <Route path="/new" component={ModifyUser} />
                 </Route>
                 <Route path="/config" component={Config} />
-                <Route path="/authentication" component={Authentication} />
             </Router>
         </AppCxProvider>
     ),
