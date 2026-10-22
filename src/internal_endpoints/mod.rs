@@ -103,9 +103,8 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Post)
-                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
-                   SQLQueryWrapper::new("INSERT INTO |users_target_table| (name, email, password) VALUES ({name}, {email}, {password}); INSERT INTO |roles_target_table| (user_id, role) SELECT users.user_id, {role} FROM |users_target_table| as users WHERE (users.email = {email});".into()).with_include(false).into()
-                )), Default::default())) // maybe `RETURNING` does not work with preparated statements?
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(PasswordHasherStep),
+                    CheapVec::from_iter([Arc::new(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(SQLQueryWrapper::new("INSERT INTO |users_target_table| (name, email, password) VALUES ({name}, {email}, {password}); INSERT INTO |roles_target_table| (user_id, role) SELECT users.user_id, {role} FROM |users_target_table| as users WHERE (users.email = {email});".into()).with_include(false).into())), Default::default()))]))) // maybe `RETURNING` does not work with preparated statements?
                 .body_params(CheapVec::from_vec(vec!["name".into(), "email".into(), "role".into(), "password".into()]))
                 .auto_generated(true)
                 .build()
@@ -122,9 +121,10 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users/{id}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Put)
-                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
-                   SQLQueryWrapper::new("UPDATE |users_target_table| SET name={name}, email={email}, password={password} WHERE (user_id = {id}); REPLACE INTO |roles_target_table| (user_id, role) VALUES ({id}, {role});".into()).with_include(false).into()
-                )), Default::default()))
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(PasswordHasherStep),
+                    CheapVec::from_iter([Arc::new(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
+                       SQLQueryWrapper::new("UPDATE |users_target_table| SET name={name}, email={email}, password={password} WHERE (user_id = {id}); REPLACE INTO |roles_target_table| (user_id, role) VALUES ({id}, {role});".into()).with_include(false).into()
+                    )), Default::default()))])))
                 .body_params(CheapVec::from_vec(vec!["name".into(), "email".into(), "role".into(), "password".into()]))
                 .auto_generated(true)
                 .build()

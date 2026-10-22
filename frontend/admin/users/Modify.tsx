@@ -206,7 +206,7 @@ export default (_: RouteSectionProps) => {
                         </label>
                     </fieldset>
                 </form>
-                <div class="flex gap-2 [&_button]:rounded-xl [&_button]:hover:shadow">
+                <div class="flex gap-2 [&_button]:rounded-lg [&_button]:hover:shadow">
                     <button
                         id="delete_user"
                         class="btn btn-active hover:text-white hover:bg-red-600"

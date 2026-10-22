@@ -655,7 +655,7 @@ export default (_: RouteSectionProps) => {
 
                             <Show when={should_show_test()}>
                                 <details
-                                    class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1"
+                                    class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl! mt-3 my-1"
                                     classList={{
                                         hidden:
                                             test_schema.route_params!.length ===
@@ -710,7 +710,7 @@ export default (_: RouteSectionProps) => {
                                 </details>
 
                                 <details
-                                    class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1"
+                                    class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl! mt-3 my-1"
                                     open
                                 >
                                     <summary class="collapse-title font-semibold transition duration-200 hover:bg-base-200">
@@ -807,7 +807,7 @@ export default (_: RouteSectionProps) => {
                                     <div class="overflow-auto overscroll-contain">
                                         <div class="grid grid-cols-1 box-border min-w-0 font-mono **:text-sm **:leading-6 overflow-hidden">
                                             <div
-                                                class="bg-base-200/75 p-3 border border-base-300 col-start-1 row-start-1 rounded-2xl w-full h-full inset-0 backdrop-brightness-125 backdrop-blur-xs pointer-events-none whitespace-pre-wrap wrap-break-word z-10 min-w-0 overflow-hidden"
+                                                class="bg-base-200/75 p-3 border border-base-300 col-start-1 row-start-1 rounded-lg w-full h-full inset-0 backdrop-brightness-125 backdrop-blur-xs pointer-events-none whitespace-pre-wrap wrap-break-word z-10 min-w-0 overflow-hidden"
                                                 ref={async (element) => {
                                                     createEffect(async () => {
                                                         if (
@@ -893,7 +893,7 @@ export default (_: RouteSectionProps) => {
                         </div>
 
                         <Show when={should_show_test()}>
-                            <div class="flex gap-2 [&_button]:rounded-xl [&_button]:hover:shadow">
+                            <div class="flex gap-2 [&_button]:rounded-lg [&_button]:hover:shadow">
                                 <button
                                     id="submit"
                                     type="submit"
@@ -909,7 +909,7 @@ export default (_: RouteSectionProps) => {
                                     Send
                                 </button>
                                 <div
-                                    class="py-2 btn btn-ghost bg-base-200 border border-base-300 rounded-2xl flex items-baseline-last gap-2"
+                                    class="py-2 btn btn-ghost bg-base-200 border border-base-300 rounded-lg flex items-baseline-last gap-2"
                                     onClick={(_) => {
                                         set_raw_schema_mode(
                                             !get_raw_schema_mode(),
@@ -930,7 +930,7 @@ export default (_: RouteSectionProps) => {
                                     <input
                                         id="table-mode"
                                         type="checkbox"
-                                        class="toggle"
+                                        class="toggle rounded-2xl!"
                                         checked={get_raw_schema_mode()}
                                     />
                                 </div>
@@ -960,7 +960,7 @@ export default (_: RouteSectionProps) => {
                     </div>
 
                     <div
-                        class="flex flex-col basis-auto min-w-1/3 min-h-full gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-box md:mx-6 not-md:my-4 p-4 transition-all transition-discrete ease-in-out duration-500"
+                        class="flex flex-col basis-auto min-w-1/3 min-h-full gap-1.5 bg-base-200/75 border border-base-300 overflow-y-scroll scrollbar-thin max-h-96 backdrop-brightness-125 backdrop-blur-xs shadow-xl rounded-lg! md:mx-6 not-md:my-4 p-4 transition-all transition-discrete ease-in-out duration-500"
                         classList={{
                             "invisible opacity-0 md:min-w-0! not-md:min-h-0! w-0! h-0! mx-0! my-0! p-0! basis-auto! *:opacity-0 overflow-hidden pointer-events-none":
                                 response() === undefined,

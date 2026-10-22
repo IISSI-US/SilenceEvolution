@@ -258,7 +258,7 @@ export default (props: RouteSectionProps) => {
                             </fieldset>
 
                             <details
-                                class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1"
+                                class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl! mt-3 my-1"
                                 open
                             >
                                 <summary class="collapse-title font-semibold transition duration-200 hover:bg-base-300">
@@ -338,7 +338,7 @@ export default (props: RouteSectionProps) => {
                             </details>
 
                             <details
-                                class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1"
+                                class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl! mt-3 my-1"
                                 open
                             >
                                 <summary class="collapse-title font-semibold transition duration-200 hover:bg-base-300">
@@ -451,7 +451,7 @@ export default (props: RouteSectionProps) => {
                                         </label>
                                     </fieldset>
 
-                                    <details class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl mt-3 my-1">
+                                    <details class="collapse bg-white/50 dark:bg-base-100/20 border border-base-300 rounded-2xl! mt-3 my-1">
                                         <summary class="collapse-title font-semibold transition duration-200 hover:bg-base-300">
                                             Internal tables
                                         </summary>
@@ -537,7 +537,7 @@ export default (props: RouteSectionProps) => {
                                 />
                             </label>
                         </form>
-                        <div class="flex gap-2 [&_button]:rounded-xl [&_button]:hover:shadow">
+                        <div class="flex gap-2 [&_button]:rounded-lg [&_button]:hover:shadow">
                             <button
                                 id="submit"
                                 type="submit"

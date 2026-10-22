@@ -1,7 +1,7 @@
 [package]
 name = "silence"
 description = "An educational framework for deploying APIs (based on a MySQL schema) and web applications."
-version = "0.0.11"
+version = "0.0.12"
 homepage = "https://github.com/nv0skar/SilenceEvolution"
 repository = "https://github.com/nv0skar/SilenceEvolution"
 edition = "2024"
@@ -13,9 +13,9 @@ rustyrosetta = { git = "https://github.com/nv0skar/RustyRosetta.git", tag = "rus
 boxed_any = { git = "https://github.com/nv0skar/BoxedAny.git" }
 boxed_any_derive = { git = "https://github.com/nv0skar/BoxedAny.git" }
 
-waveless_commons = { git = "https://github.com/nv0skar/waveless.git" }
-waveless_compiler = { git = "https://github.com/nv0skar/waveless.git" }
-waveless_runtime = { git = "https://github.com/nv0skar/waveless.git" }
+waveless_commons = { git = "https://github.com/nv0skar/waveless.git", tag = "0.4.2" }
+waveless_compiler = { git = "https://github.com/nv0skar/waveless.git", tag = "0.4.2" }
+waveless_runtime = { git = "https://github.com/nv0skar/waveless.git", tag = "0.4.2" }
 
 waveless_sql = { git = "https://github.com/nv0skar/waveless_sql.git", features = ["mysql"] }
 
@@ -70,8 +70,7 @@ mimalloc = { version = "0.1.48", features = ["secure"] }
 
 rand = "0.10"
 
-blake3 = "1.8"
-argon2 = { version = "0.5", default-features = true }
+argon2 = "0.6"
 crc32fast = "1.4"
 
 clap = { version = "4.6", features = ["derive"] }

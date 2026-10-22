@@ -59,7 +59,7 @@ export default (props: {
     return (
         <>
             <div
-                class="flex flex-col bg-base-200/75 w-full min-h-12 border border-base-300 text-info not-dark:text-black text-center justify-center items-center backdrop-blur-xs shadow-sm rounded-box my-2 p-2 cursor-pointer transition-all ease-out transition-discrete duration-500"
+                class="flex flex-col bg-base-200/75 w-full min-h-12 border border-base-300 text-info not-dark:text-black text-center justify-center items-center backdrop-blur-xs shadow-sm rounded-2xl! my-2 p-2 cursor-pointer transition-all ease-out transition-discrete duration-500"
                 classList={{
                     "invisible opacity-0 min-h-0! h-0! my-0! p-0! *:opacity-0 *:scale-25 overflow-hidden pointer-events-none":
                         get_alert() === undefined,

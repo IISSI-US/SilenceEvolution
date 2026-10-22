@@ -49,7 +49,7 @@ export default (props: RouteSectionProps) => {
 
     return (
         <>
-            <div class="drawer md:drawer-open [&_input]:rounded-2xl [&_input]:bg-base-200/75 [&_input]:backdrop-brightness-125 [&_input]:backdrop-blur-xs [&_textarea]:rounded-2xl">
+            <div class="drawer md:drawer-open [&_input]:rounded-lg [&_input]:bg-base-200/75 [&_input]:backdrop-brightness-125 [&_input]:backdrop-blur-xs [&_textarea]:rounded-lg">
                 <input id="app-drawer" type="checkbox" class="drawer-toggle" />
                 <div class="drawer-content flex flex-col">
                     <nav>
@@ -65,7 +65,7 @@ export default (props: RouteSectionProps) => {
                                     </span>
                                 </label>
                                 <Show when={config() !== undefined}>
-                                    <span class="text-[0.5rem] max-h-16 text-xs! text-emerald-700 dark:text-emerald-500 font-semibold animate-pulse bg-base-300/50 backdrop-blur-xs rounded-2xl border border-base-200 px-3 py-1 ml-24 overflow-y-scroll not-md:hidden scrollbar-none">
+                                    <span class="text-[0.5rem] max-h-16 text-xs! text-emerald-700 dark:text-emerald-500 font-semibold animate-pulse bg-base-300/50 backdrop-blur-xs rounded-lg border border-base-200 px-3 py-1 ml-24 overflow-y-scroll not-md:hidden scrollbar-none">
                                         Running on database{" "}
                                         <span class="font-black">
                                             {config()?.databases_conn.main.db}
@@ -93,6 +93,16 @@ export default (props: RouteSectionProps) => {
                                 </A>
                             </div>
                             <div class="navbar-end">
+                                <span class="text-[0.5rem] max-h-16 text-xs! font-semibold bg-base-300/50 backdrop-blur-xs rounded-lg border border-base-200 px-3 py-1 ml-24 overflow-y-scroll not-md:hidden scrollbar-none">
+                                    Having issues? Contact me at{" "}
+                                    <a href="mailto:oalvarez1@us.es">
+                                        oalvarez1@us.es
+                                    </a>{" "}
+                                    or open a issue on{" "}
+                                    <a href="https://github.com/nv0skar/SilenceEvolution">
+                                        Github
+                                    </a>
+                                </span>
                                 <Show when={session() !== undefined}>
                                     <button
                                         class="btn btn-ghost"
@@ -176,17 +186,7 @@ export default (props: RouteSectionProps) => {
                         class="drawer-overlay"
                     ></label>
                     <div class="flex h-full flex-col items-start fixed is-drawer-close:w-16 is-drawer-open:w-40 transition duration-300 ease-in-out will-change-[width]">
-                        <ul class="menu h-full bg-base-200/10 md:bg-base-200/25 border-[0.5px] border-base-200 backdrop-blur-sm shadow-xl rounded-2xl m-2 p-2 gap-2 [&_li]:transition [&_li]:duration-200 [&_li]:hover:scale-105">
-                            <li>
-                                <A href="/config">
-                                    <span class="material-symbols-outlined scale-95">
-                                        settings
-                                    </span>
-                                    <span class="is-drawer-close:hidden">
-                                        Config
-                                    </span>
-                                </A>
-                            </li>
+                        <ul class="menu h-full bg-base-300/10 md:bg-base-300/25 border-[0.5px] border-base-200 backdrop-blur-sm shadow-xl rounded-lg [&_A]:rounded-lg! m-2 p-2 gap-2 [&_li]:transition [&_li]:duration-200 [&_li]:hover:scale-105">
                             <li>
                                 <A href="/endpoints">
                                     <span class="material-symbols-outlined scale-95">
@@ -214,6 +214,16 @@ export default (props: RouteSectionProps) => {
                                     </span>
                                     <span class="is-drawer-close:hidden">
                                         Users
+                                    </span>
+                                </A>
+                            </li>
+                            <li>
+                                <A href="/config">
+                                    <span class="material-symbols-outlined scale-95">
+                                        settings
+                                    </span>
+                                    <span class="is-drawer-close:hidden">
+                                        Config
                                     </span>
                                 </A>
                             </li>

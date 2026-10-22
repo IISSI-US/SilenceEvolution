@@ -58,7 +58,7 @@ export default (props: RouteSectionProps) => {
                     <div class="navbar-end"></div>
                 </div>
             </nav>
-            <div class="flex h-screen justify-center items-center [&_input]:rounded-2xl">
+            <div class="flex h-screen justify-center items-center [&_input]:rounded-lg">
                 <div>
                     <Context.Provider
                         value={{
@@ -70,10 +70,10 @@ export default (props: RouteSectionProps) => {
                         <h1 class="my-6 text-4xl font-extrabold text-center">
                             {title()}
                         </h1>
-                        <div class="bg-base-200/50 border-base-300 backdrop-blur shadow-xl rounded-2xl w-xs border p-4">
+                        <div class="bg-base-200/50 border-base-300 backdrop-blur shadow-xl rounded-lg w-xs border p-4">
                             <Show when={error() != undefined}>
                                 <div
-                                    class="bg-red-800 border-red-400 backdrop-blur shadow-xl rounded-2xl my-2 p-2 text-center cursor-pointer"
+                                    class="bg-red-800 border-red-400 backdrop-blur shadow-xl rounded-2xl! my-2 p-2 text-center cursor-pointer"
                                     onClick={() => set_error(undefined)}
                                 >
                                     <p class="text-sm font-semibold">

@@ -100,7 +100,7 @@ export default (props: RouteSectionProps) => {
                 <div class="flex flex-col gap-3 pb-3 items-center w-full">
                     <div class="flex not-md:flex-col not-md:gap-3 items-center w-full">
                         <h1 class="text-4xl font-bold">Users</h1>
-                        <div class="flex gap-2 self-end text-right ml-auto items-center *:rounded-2xl">
+                        <div class="flex gap-2 self-end text-right ml-auto items-center *:rounded-lg">
                             <SearchButton
                                 search={[get_search, set_search]}
                             ></SearchButton>
