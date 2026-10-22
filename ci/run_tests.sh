@@ -804,6 +804,10 @@ req GET /admin
 check "the admin panel is served in setup mode" status_is 200
 req GET /_setup/config
 check "GET /_setup/config returns the default settings" jq_ok '.databases_conn.main.db == "example_db"'
+req POST /_setup/databases "$(json --arg host "$DB_HOST:$DB_PORT" --arg user "$DB_USER" --arg pass "$DB_PASSWORD" '{host: $host, username: $user, password: $pass}')"
+check "POST /_setup/databases lists the server's databases" jq_ok 'any(.name == "silence_ci_db" and .tables == 3)'
+req POST /_setup/databases "$(json --arg host "$DB_HOST:$DB_PORT" --arg user "$DB_USER" '{host: $host, username: $user, password: "wrong"}')"
+check "POST /_setup/databases with a wrong password is an error" status_is 400
 req PUT /_setup/config "$(json --arg host "$DB_HOST:$DB_PORT" --arg user "$DB_USER" --arg pass "$DB_PASSWORD" \
     '{databases_conn: {main: {host: $host, username: $user, password: $pass, db: "silence_ci_db"},
                        internal: {host: $host, username: $user, password: $pass, db: "silence_ci_internal_db"}}}')"

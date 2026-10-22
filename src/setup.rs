@@ -154,9 +154,64 @@ pub async fn load_generated_endpoints() -> Result<usize> {
     Ok(count)
 }
 
+/// A database of the server, as offered by the setup page.
+#[derive(Serialize, Debug)]
+pub struct ServerDatabase {
+    name: String,
+    /// Number of tables.
+    tables: i64,
+    /// Whether it already holds Silence's users table (a candidate for the users database).
+    has_users: bool,
+}
+
+/// Credentials to browse a database server from the setup page.
+#[derive(Deserialize, Debug)]
+pub struct ServerCredentials {
+    host: SocketAddr,
+    username: String,
+    password: String,
+}
+
+/// Lists the databases the user can access on the server (MariaDB only lists those).
+pub async fn list_databases(credentials: &ServerCredentials) -> Result<Vec<ServerDatabase>> {
+    use sea_orm::sqlx::{self, ConnectOptions, Row, mysql::MySqlConnectOptions};
+
+    let mut conn = MySqlConnectOptions::new()
+        .host(&credentials.host.ip().to_string())
+        .port(credentials.host.port())
+        .username(&credentials.username)
+        .password(&credentials.password)
+        .connect()
+        .await?;
+
+    let rows = sqlx::query(
+        "SELECT CAST(s.schema_name AS CHAR) AS name,
+                CAST(COUNT(t.table_name) AS SIGNED) AS tables,
+                CAST(COALESCE(MAX(t.table_name = 'silence_users'), 0) AS SIGNED) AS has_users
+         FROM information_schema.schemata s
+         LEFT JOIN information_schema.tables t ON t.table_schema = s.schema_name
+         WHERE s.schema_name NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
+         GROUP BY s.schema_name
+         ORDER BY s.schema_name",
+    )
+    .fetch_all(&mut conn)
+    .await?;
+
+    rows.iter()
+        .map(|row| {
+            Ok(ServerDatabase {
+                name: row.try_get("name")?,
+                tables: row.try_get("tables")?,
+                has_users: row.try_get::<i64, _>("has_users")? != 0,
+            })
+        })
+        .collect()
+}
+
 /// Serves `/_setup/*`:
 /// - `GET status`: `{connected, error, local_admin}`.
 /// - `GET config` / `PUT config` (a config patch): the project's settings, before connecting.
+/// - `POST databases` (`{host, username, password}`): the databases of that server.
 /// - `POST connect`: connects to the configured databases.
 pub async fn handle(request: Request<BoxBody<ConnBytes, eyre::Error>>) -> Response<ConnBody> {
     let method = request.method().to_owned();
@@ -219,6 +274,22 @@ pub async fn handle(request: Request<BoxBody<ConnBytes, eyre::Error>>) -> Respon
             match AppCx::acquire().set_config().await {
                 Ok(()) => reply(200, json!({})),
                 Err(err) => error(500, format!("Cannot save the settings. {}", err)),
+            }
+        }
+        (hyper::Method::POST, "_setup/databases") => {
+            let body = match request.into_body().collect().await {
+                Ok(body) => body.to_bytes(),
+                Err(err) => return error(400, format!("Cannot read the request's body. {}", err)),
+            };
+
+            let credentials = match serde_json::from_slice::<ServerCredentials>(&body) {
+                Ok(credentials) => credentials,
+                Err(err) => return error(400, format!("Invalid server credentials. {}", err)),
+            };
+
+            match list_databases(&credentials).await {
+                Ok(databases) => reply(200, serde_json::to_value(databases).unwrap_or_default()),
+                Err(err) => error(400, format!("Cannot connect to the server. {:#}", err)),
             }
         }
         (hyper::Method::POST, "_setup/connect") => {
