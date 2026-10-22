@@ -73,6 +73,11 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
+      # build.rs skips the frontend when target/frontend already exists, which happens whenever
+      # rust-cache restores target/: build it explicitly so the embedded panel is never stale.
+      - name: Build frontend
+        run: bun run build
+
       - name: Build
         run: cargo build
 
