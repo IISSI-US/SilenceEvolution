@@ -8,6 +8,7 @@ import {
     type Accessor,
     type Setter,
 } from "solid-js";
+import Icon from "@admin/components/Icon";
 
 export const sort_by_column = (
     field: keyof any,
@@ -81,11 +82,7 @@ export const SortableColumnCell = (props: {
                 <div class="flex items-center">
                     <span class="mr-auto">{props.title}</span>
                     <Show when={show_icon()}>
-                        <span class="material-symbols-outlined ml-left">
-                            {get_table_sort().order === "asc"
-                                ? "keyboard_arrow_down"
-                                : "keyboard_arrow_up"}
-                        </span>
+                        <Icon name={get_table_sort().order === "asc" ? "chevron" : "chevron-up"} class="ml-left" />
                     </Show>
                 </div>
             </div>

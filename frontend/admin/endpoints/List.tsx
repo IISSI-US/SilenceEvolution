@@ -27,6 +27,7 @@ import { A, useNavigate, type RouteSectionProps } from "@solidjs/router";
 import { filter, pipe, sortBy } from "remeda";
 
 import { loadGrammar } from "@arborium/arborium";
+import Icon from "@admin/components/Icon";
 
 export default (props: RouteSectionProps) => {
     const app_cx = useContext(AppCx)!;
@@ -133,9 +134,7 @@ export default (props: RouteSectionProps) => {
                                 class="btn text-sm self-end text-right ml-auto"
                                 href="/endpoints/new"
                             >
-                                <span class="material-symbols-outlined lg:hidden!">
-                                    add
-                                </span>
+                                <Icon name="plus" class="lg:hidden!" />
                                 <span class="not-lg:hidden">
                                     Create new endpoint
                                 </span>
@@ -147,9 +146,7 @@ export default (props: RouteSectionProps) => {
                                 class="btn text-sm self-end text-right ml-auto"
                                 onClick={refetch}
                             >
-                                <span class="material-symbols-outlined">
-                                    refresh
-                                </span>
+                                <Icon name="refresh" />
                             </button>
                             <div
                                 class="py-2 btn btn-ghost bg-base-200 border border-base-300 flex items-baseline-last gap-2"
@@ -574,9 +571,7 @@ export default (props: RouteSectionProps) => {
                                                             );
                                                         }}
                                                     >
-                                                        <span class="material-symbols-outlined scale-90">
-                                                            data_object
-                                                        </span>
+                                                        <Icon name="braces" class="scale-90" />
                                                         <span class="font-bold">
                                                             Modify
                                                         </span>
@@ -595,9 +590,7 @@ export default (props: RouteSectionProps) => {
                                                             );
                                                         }}
                                                     >
-                                                        <span class="material-symbols-outlined scale-90">
-                                                            science
-                                                        </span>
+                                                        <Icon name="tests" class="scale-90" />
                                                         <span class="font-bold">
                                                             Test
                                                         </span>

@@ -35,6 +35,7 @@ import {
 import { pipe, map, fromEntries, join, entries, filter } from "remeda";
 
 import { loadGrammar } from "@arborium/arborium";
+import Icon from "@admin/components/Icon";
 
 export interface TestBaseSchema {
     base_route?: string;
@@ -750,9 +751,7 @@ export default (_: RouteSectionProps) => {
                                                                             parent!.remove();
                                                                         }}
                                                                     >
-                                                                        <span class="material-symbols-outlined">
-                                                                            delete
-                                                                        </span>
+                                                                        <Icon name="trash" />
                                                                     </div>
                                                                 </div>
                                                                 <input
@@ -792,9 +791,7 @@ export default (_: RouteSectionProps) => {
                                                 );
                                             }}
                                         >
-                                            <span class="material-symbols-outlined lg:hidden!">
-                                                add
-                                            </span>
+                                            <Icon name="plus" class="lg:hidden!" />
                                             <span class="not-lg:hidden">
                                                 Add query param
                                             </span>

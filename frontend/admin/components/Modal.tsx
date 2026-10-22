@@ -6,6 +6,7 @@ import { children, Show, type ParentProps } from "solid-js";
 import { Portal } from "solid-js/web";
 
 import { A, useLocation, useNavigate, useParams } from "@solidjs/router";
+import Icon from "@admin/components/Icon";
 
 export default (props: { parent_path: string } & ParentProps) => {
     const navigate = useNavigate();
@@ -73,11 +74,7 @@ export default (props: { parent_path: string } & ParentProps) => {
                                             : "Modify endpoint"
                                     }
                                 >
-                                    <span class="material-symbols-outlined">
-                                        {location.pathname.includes("modify")
-                                            ? "science"
-                                            : "data_object"}
-                                    </span>
+                                    <Icon name={location.pathname.includes("modify") ? "tests" : "braces"} />
                                 </button>
                                 <A
                                     class="btn btn-circle bg-base-300 border-[0.5px] border-base-200 shadow-xs scale-90 hover:bg-base-200"
@@ -85,9 +82,7 @@ export default (props: { parent_path: string } & ParentProps) => {
                                     noScroll
                                     replace={false}
                                 >
-                                    <span class="material-symbols-outlined">
-                                        close
-                                    </span>
+                                    <Icon name="x" />
                                 </A>
                             </div>
 

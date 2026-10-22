@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
 import { type Accessor, type Setter } from "solid-js";
+import Icon from "@admin/components/Icon";
 
 export default (props: {
     search: [Accessor<string | undefined>, Setter<string | undefined>];
@@ -23,7 +24,7 @@ export default (props: {
                 popovertarget="search-dropdown"
                 style="anchor-name:--search-dropdown"
             >
-                <span class="material-symbols-outlined">search</span>
+                <Icon name="search" />
             </button>
             <ul
                 id="search-dropdown"

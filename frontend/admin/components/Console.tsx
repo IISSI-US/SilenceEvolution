@@ -6,6 +6,7 @@ import { createSignal, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 
 import Convert from "ansi-to-html";
+import Icon from "@admin/components/Icon";
 
 export default () => {
     let console_stream: HTMLDivElement | undefined = undefined;
@@ -101,9 +102,7 @@ export default () => {
                                                 "100vh";
                                         }}
                                     >
-                                        <span class="material-symbols-outlined">
-                                            bottom_panel_close
-                                        </span>
+                                        <Icon name="panel-close" />
                                     </button>
                                     <button
                                         class="align-middle hover:scale-105 duration-200!"
@@ -112,9 +111,7 @@ export default () => {
                                                 "0vh";
                                         }}
                                     >
-                                        <span class="material-symbols-outlined">
-                                            expand_content
-                                        </span>
+                                        <Icon name="expand" />
                                     </button>
                                 </div>
                             </div>

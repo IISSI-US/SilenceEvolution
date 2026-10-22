@@ -17,6 +17,7 @@ import {
 } from "@solidjs/router";
 
 import { pipe, filter, split, first } from "remeda";
+import Icon from "@admin/components/Icon";
 
 export const current_component = (full_path: string) => {
     return pipe(
@@ -60,9 +61,7 @@ export default (props: RouteSectionProps) => {
                                     data-tip="Open"
                                     class="btn btn-ghost lg:hidden"
                                 >
-                                    <span class="material-symbols-outlined">
-                                        side_navigation
-                                    </span>
+                                    <Icon name="sidebar" />
                                 </label>
                                 <Show when={config() !== undefined}>
                                     <span class="text-[0.5rem] max-h-16 text-xs! text-emerald-700 dark:text-emerald-500 font-semibold animate-pulse bg-base-300 rounded-box border border-base-200 px-3 py-1 ml-24 overflow-y-scroll not-lg:hidden scrollbar-none">
@@ -114,9 +113,7 @@ export default (props: RouteSectionProps) => {
                                     >
                                         <li>
                                             <button onClick={logout}>
-                                                <span class="material-symbols-outlined text-xs">
-                                                    logout
-                                                </span>
+                                                <Icon name="logout" class="text-xs" />
                                                 <span class="font-bold">
                                                     Logout
                                                 </span>
@@ -179,9 +176,7 @@ export default (props: RouteSectionProps) => {
                         <ul class="menu h-full bg-base-200 lg:bg-base-100 border-[0.5px] border-base-200 shadow-sm rounded-box m-2 p-2 gap-2 [&_li]:transition [&_li]:duration-200 [&_li]:hover:scale-105">
                             <li>
                                 <A href="/config">
-                                    <span class="material-symbols-outlined scale-95">
-                                        settings
-                                    </span>
+                                    <Icon name="config" class="scale-95" />
                                     <span class="is-drawer-close:hidden">
                                         Config
                                     </span>
@@ -189,9 +184,7 @@ export default (props: RouteSectionProps) => {
                             </li>
                             <li>
                                 <A href="/endpoints">
-                                    <span class="material-symbols-outlined scale-95">
-                                        route
-                                    </span>
+                                    <Icon name="endpoints" class="scale-95" />
                                     <span class="is-drawer-close:hidden">
                                         Endpoints
                                     </span>
@@ -199,9 +192,7 @@ export default (props: RouteSectionProps) => {
                             </li>
                             <li>
                                 <A href="/tests">
-                                    <span class="material-symbols-outlined scale-95">
-                                        science
-                                    </span>
+                                    <Icon name="tests" class="scale-95" />
                                     <span class="is-drawer-close:hidden">
                                         Tests
                                     </span>
@@ -209,9 +200,7 @@ export default (props: RouteSectionProps) => {
                             </li>
                             <li>
                                 <A href="/users">
-                                    <span class="material-symbols-outlined scale-95">
-                                        group
-                                    </span>
+                                    <Icon name="users" class="scale-95" />
                                     <span class="is-drawer-close:hidden">
                                         Users
                                     </span>
@@ -219,9 +208,7 @@ export default (props: RouteSectionProps) => {
                             </li>
                             <li class="absolute bottom-0 my-2">
                                 <label for="app-drawer">
-                                    <span class="material-symbols-outlined scale-95">
-                                        side_navigation
-                                    </span>
+                                    <Icon name="sidebar" class="scale-95" />
                                 </label>
                             </li>
                         </ul>
