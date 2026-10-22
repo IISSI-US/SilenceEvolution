@@ -58,36 +58,17 @@ export function mount(parent, ...children) {
     return append(parent, children);
 }
 
-/** Inline SVG icons (stroke based, 24x24 viewBox). */
-const ICONS = {
-    endpoints: "M4 6h16M4 12h16M4 18h10",
-    tests: "M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3",
-    users: "M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 19v-1a4 4 0 0 0-3-3.9M16 3.1a3.5 3.5 0 0 1 0 6.8",
-    config: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1",
-    plus: "M12 5v14M5 12h14",
-    x: "M18 6 6 18M6 6l12 12",
-    play: "M6 4l14 8-14 8z",
-    trash: "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14",
-    logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
-    chevron: "M6 9l6 6 6-6",
-    copy: "M9 9h11v11H9zM5 15H4V4h11v1",
-    save: "M5 3h11l5 5v13H3V3zM7 3v6h8M7 21v-7h10v7",
-};
+const SVG_NS = "http://www.w3.org/2000/svg";
 
-/** Returns an inline SVG icon by name. */
+/** Returns an icon from the sprite (`panel/icons.svg`) by its symbol id. */
 export function icon(name) {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-width", "2");
-    svg.setAttribute("stroke-linecap", "round");
-    svg.setAttribute("stroke-linejoin", "round");
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("class", "icon");
     svg.setAttribute("aria-hidden", "true");
 
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", ICONS[name] ?? "");
-    svg.append(path);
+    const use = document.createElementNS(SVG_NS, "use");
+    use.setAttribute("href", `/_silence/icons.svg#${name}`);
+    svg.append(use);
 
     return svg;
 }

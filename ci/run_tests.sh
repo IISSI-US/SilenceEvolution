@@ -783,6 +783,8 @@ for module in solid-js/solid solid-js/web solid-js/html solid-js/store solidjs-r
 done
 req GET /admin2
 check "GET /admin2 maps the vendored modules with an import map" eval 'body_contains "type=\"importmap\"" && body_contains "/_silence/vendor/solid-js/solid.js"'
+req GET /_silence/icons.svg
+check "GET /_silence/icons.svg serves the icon sprite" eval 'status_is 200 && header_matches "^content-type: *image/svg\\+xml" && body_contains "<symbol id=\"plus\""'
 req GET /_silence/styles/panel.scss
 check "Sass sources are not served" status_is 404
 req GET /_silence/../config.json "" --path-as-is
