@@ -357,7 +357,14 @@ export default (props: RouteSectionProps) => {
                                             set_table_sort,
                                         ]}
                                     />
-                                    <div class="table-cell">Version</div>
+                                    <div
+                                        class="table-cell"
+                                        classList={{
+                                            "hidden!": !get_full_data(),
+                                        }}
+                                    >
+                                        Version
+                                    </div>
                                     <div class="table-cell">Method</div>
                                     <div
                                         class="table-cell"
@@ -459,7 +466,13 @@ export default (props: RouteSectionProps) => {
                                                     {endpoint().endpoint
                                                         .description ?? "—"}
                                                 </div>
-                                                <div class="table-cell font-mono">
+                                                <div
+                                                    class="table-cell font-mono"
+                                                    classList={{
+                                                        "hidden!":
+                                                            !get_full_data(),
+                                                    }}
+                                                >
                                                     {
                                                         endpoint().endpoint
                                                             .version
