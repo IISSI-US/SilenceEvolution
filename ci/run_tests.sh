@@ -777,6 +777,12 @@ for module in admin auth api dom router highlight ansi console views/endpoints v
     req GET "/_silence/js/$module.js"
     check "GET /_silence/js/$module.js is served as JavaScript" eval 'status_is 200 && header_matches "^content-type: *(text|application)/javascript"'
 done
+for module in solid-js/solid solid-js/web solid-js/html solid-js/store solidjs-router/index; do
+    req GET "/_silence/vendor/$module.js"
+    check "GET /_silence/vendor/$module.js is served as JavaScript" eval 'status_is 200 && header_matches "^content-type: *(text|application)/javascript"'
+done
+req GET /admin2
+check "GET /admin2 maps the vendored modules with an import map" eval 'body_contains "type=\"importmap\"" && body_contains "/_silence/vendor/solid-js/solid.js"'
 req GET /_silence/styles/panel.scss
 check "Sass sources are not served" status_is 404
 req GET /_silence/../config.json "" --path-as-is
