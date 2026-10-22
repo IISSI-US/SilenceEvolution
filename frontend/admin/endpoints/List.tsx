@@ -123,6 +123,35 @@ export default (props: RouteSectionProps) => {
         }),
     );
 
+    // `Load endpoints`: discovers the database's schema and (re)loads the generated endpoints.
+    const [loading_endpoints, set_loading_endpoints] = createSignal(false);
+
+    const load_endpoints = async () => {
+        set_loading_endpoints(true);
+
+        const res = await fetch("/api/internal/admin/endpoints/load", {
+            method: "POST",
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+            loaded?: number;
+            error?: string;
+        };
+
+        set_alert(
+            res.ok
+                ? {
+                      value: `Loaded ${body.loaded} endpoints from the database.`,
+                  }
+                : {
+                      value: body.error ?? "Cannot load the endpoints.",
+                      is_error: true,
+                  },
+        );
+
+        set_loading_endpoints(false);
+        refetch();
+    };
+
     // A sub-route (edit, test...) is shown as a full page that replaces the list.
     const sub_page = children(() => props.children);
 
@@ -138,6 +167,16 @@ export default (props: RouteSectionProps) => {
                     <div class="flex not-lg:flex-col not-lg:gap-3 items-center w-full">
                         <h1 class="text-4xl font-bold">Endpoints</h1>
                         <div class="flex gap-2 self-end text-right ml-auto items-center">
+                            <button
+                                class="btn text-sm"
+                                disabled={loading_endpoints()}
+                                onClick={load_endpoints}
+                            >
+                                <Icon name="refresh" class="lg:hidden!" />
+                                <span class="not-lg:hidden">
+                                    Load endpoints
+                                </span>
+                            </button>
                             <A
                                 class="btn text-sm self-end text-right ml-auto"
                                 href="/endpoints/new"

@@ -195,10 +195,11 @@ export default (_: RouteSectionProps) => {
                                 name="password"
                                 type="password"
                                 class="input peer validator"
-                                placeholder="Password"
-                                value={user() ? user()!.password : ""}
+                                placeholder={
+                                    id ? "Leave empty to keep it" : "Password"
+                                }
                                 minLength="8"
-                                required={user === undefined}
+                                required={!id}
                             />
                             <p class="text-error pt-1 hidden peer-not-placeholder-shown:peer-invalid:peer-focus:block">
                                 Password must have 8 characters or more.

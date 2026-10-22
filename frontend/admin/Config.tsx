@@ -1,6 +1,7 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
+import { setup_status } from "@admin/Session";
 import AlertBox, { type AlertStruct } from "@admin/components/AlertContainer";
 
 import {
@@ -42,7 +43,11 @@ export interface DatabaseConn {
 }
 
 export const fetcher = async (): Promise<ConfigStruct> => {
-    const res = await fetch("/api/internal/admin/config");
+    // Until the databases are connected the settings are served by the setup API.
+    const { connected } = await setup_status();
+    const res = await fetch(
+        connected ? "/api/internal/admin/config" : "/_setup/config",
+    );
 
     if (!res.ok) console.clear();
 

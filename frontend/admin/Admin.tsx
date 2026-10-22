@@ -1,6 +1,7 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
+import Setup from "@admin/Setup";
 import AppCx from "@admin/AppCx";
 
 import { logout } from "@admin/Session";
@@ -23,7 +24,9 @@ export const current_component = (full_path: string) => {
     return pipe(
         full_path,
         split("/"),
-        filter((str) => str.length !== 0 && str !== "admin" && str !== "admin2"),
+        filter(
+            (str) => str.length !== 0 && str !== "admin" && str !== "admin2",
+        ),
         first(),
     );
 };
@@ -63,7 +66,12 @@ export default (props: RouteSectionProps) => {
                                 >
                                     <Icon name="sidebar" />
                                 </label>
-                                <Show when={config() !== undefined}>
+                                <Show
+                                    when={
+                                        config() !== undefined &&
+                                        session()?.connected
+                                    }
+                                >
                                     <span class="text-[0.5rem] max-h-16 text-xs! text-emerald-700 dark:text-emerald-500 font-semibold animate-pulse bg-base-300 rounded-box border border-base-200 px-3 py-1 ml-24 overflow-y-scroll not-lg:hidden scrollbar-none">
                                         Running on database{" "}
                                         <span class="font-black">
@@ -92,7 +100,17 @@ export default (props: RouteSectionProps) => {
                                 </A>
                             </div>
                             <div class="navbar-end">
-                                <Show when={session() !== undefined}>
+                                <Show when={session()?.local}>
+                                    <span class="text-sm px-4">
+                                        Local admin
+                                    </span>
+                                </Show>
+                                <Show
+                                    when={
+                                        session() !== undefined &&
+                                        !session()!.local
+                                    }
+                                >
                                     <button
                                         class="btn btn-ghost"
                                         popovertarget="user-dropdown"
@@ -113,7 +131,10 @@ export default (props: RouteSectionProps) => {
                                     >
                                         <li>
                                             <button onClick={logout}>
-                                                <Icon name="logout" class="text-xs" />
+                                                <Icon
+                                                    name="logout"
+                                                    class="text-xs"
+                                                />
                                                 <span class="font-bold">
                                                     Logout
                                                 </span>
@@ -127,41 +148,50 @@ export default (props: RouteSectionProps) => {
                     <div class="absolute top-0 left-0 p-8 px-3 lg:pl-26 lg:pr-8 pt-24 w-screen h-screen z-0">
                         <Show when={session() !== undefined}>
                             <Show
-                                when={session()!.role === "admin"}
+                                when={session()!.connected}
                                 fallback={
-                                    <div class="flex justify-center items-center top-0 text-2xl text-center font-bold leading-relaxed">
-                                        <div>
-                                            <span>
-                                                Hmmm... It seems you shouldn't
-                                                be here {session()!.name}.{" "}
-                                            </span>
-                                            <br />
-                                            <span class="text-error">
-                                                This account doesn't have the
-                                                required role for managing this{" "}
-                                                <span class="font-black">
-                                                    Silence
-                                                </span>{" "}
-                                                project.
-                                            </span>
-                                            <br />
-                                            <span>
-                                                HINT: access the database and
-                                                add the{" "}
-                                                <code class="bg-base-300 p-2 rounded-sm">
-                                                    admin
-                                                </code>{" "}
-                                                role to the user id{" "}
-                                                <code class="bg-base-300 p-2 rounded-sm">
-                                                    {session()!.user_id}
-                                                </code>
-                                            </span>
-                                        </div>
-                                    </div>
+                                    <Setup error={session()!.setup_error} />
                                 }
                             >
-                                {props.children}
-                                <Console />
+                                <Show
+                                    when={session()!.role === "admin"}
+                                    fallback={
+                                        <div class="flex justify-center items-center top-0 text-2xl text-center font-bold leading-relaxed">
+                                            <div>
+                                                <span>
+                                                    Hmmm... It seems you
+                                                    shouldn't be here{" "}
+                                                    {session()!.name}.{" "}
+                                                </span>
+                                                <br />
+                                                <span class="text-error">
+                                                    This account doesn't have
+                                                    the required role for
+                                                    managing this{" "}
+                                                    <span class="font-black">
+                                                        Silence
+                                                    </span>{" "}
+                                                    project.
+                                                </span>
+                                                <br />
+                                                <span>
+                                                    HINT: access the database
+                                                    and add the{" "}
+                                                    <code class="bg-base-300 p-2 rounded-sm">
+                                                        admin
+                                                    </code>{" "}
+                                                    role to the user id{" "}
+                                                    <code class="bg-base-300 p-2 rounded-sm">
+                                                        {session()!.user_id}
+                                                    </code>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    }
+                                >
+                                    {props.children}
+                                    <Console />
+                                </Show>
                             </Show>
                         </Show>
                     </div>
@@ -182,7 +212,12 @@ export default (props: RouteSectionProps) => {
                                     </span>
                                 </A>
                             </li>
-                            <li>
+                            <li
+                                classList={{
+                                    "pointer-events-none opacity-40":
+                                        session()?.connected === false,
+                                }}
+                            >
                                 <A href="/endpoints">
                                     <Icon name="endpoints" class="scale-95" />
                                     <span class="is-drawer-close:hidden">
@@ -190,7 +225,12 @@ export default (props: RouteSectionProps) => {
                                     </span>
                                 </A>
                             </li>
-                            <li>
+                            <li
+                                classList={{
+                                    "pointer-events-none opacity-40":
+                                        session()?.connected === false,
+                                }}
+                            >
                                 <A href="/tests">
                                     <Icon name="tests" class="scale-95" />
                                     <span class="is-drawer-close:hidden">
@@ -198,7 +238,12 @@ export default (props: RouteSectionProps) => {
                                     </span>
                                 </A>
                             </li>
-                            <li>
+                            <li
+                                classList={{
+                                    "pointer-events-none opacity-40":
+                                        session()?.connected === false,
+                                }}
+                            >
                                 <A href="/users">
                                     <Icon name="users" class="scale-95" />
                                     <span class="is-drawer-close:hidden">

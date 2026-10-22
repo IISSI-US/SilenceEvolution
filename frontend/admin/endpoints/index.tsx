@@ -36,7 +36,9 @@ export interface Endpoint {
 export type EndpointsContext = ResourceReturn<Array<EndpointByFile>, any>;
 
 export const fetcher = async (): Promise<Array<EndpointByFile>> => {
-    const res = await fetch("/api/internal/endpoints");
+    const res = await fetch("/api/internal/endpoints", {
+        headers: { "Cache-Control": "no-cache" },
+    });
 
     if (!res.ok) console.clear();
 
