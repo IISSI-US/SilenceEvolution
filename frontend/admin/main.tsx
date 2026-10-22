@@ -21,12 +21,15 @@ import { render } from "solid-js/web";
 
 import { Router, Route } from "@solidjs/router";
 
+// The panel is served at `/admin` and `/admin2`.
+const ADMIN_BASE = location.pathname.startsWith("/admin2") ? "/admin2" : "/admin";
+
 const root = document.getElementById("root");
 
 render(
     () => (
         <AppCxProvider>
-            <Router root={Admin} base="/admin">
+            <Router root={Admin} base={ADMIN_BASE}>
                 <Route path="/*" component={ListEndpoint} />
                 <Route path="/endpoints" component={ListEndpoint}>
                     <Route path="/*" />

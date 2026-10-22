@@ -28,7 +28,8 @@ export const fetcher = async (): Promise<Session> => {
 
         return data as Session;
     } else {
-        document.location.replace("/auth?redirect=/admin");
+        const admin_base = location.pathname.startsWith("/admin2") ? "/admin2" : "/admin";
+        document.location.replace(`${admin_base.replace("admin", "auth")}?redirect=${admin_base}`);
         throw new Error("User is not logged in.");
     }
 };

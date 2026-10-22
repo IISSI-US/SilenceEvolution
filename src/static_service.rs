@@ -41,11 +41,13 @@ impl Service<Request<ConnBody>> for StaticService {
 
             let body = match route.split('/').next() {
                 Some(route_part) => match route_part {
-                    "admin" | "auth" | "internal_assets" => {
+                    // `/admin2` and `/auth2` serve the same panel, to compare it side by side with the
+                    // new panel (branch `experimentos`) at the same URLs.
+                    "admin" | "admin2" | "auth" | "auth2" | "internal_assets" => {
                         if let Some(file) = StaticService::get({
-                            if route_part == "admin" {
+                            if route_part.starts_with("admin") {
                                 "admin/index.html"
-                            } else if route_part == "auth" {
+                            } else if route_part.starts_with("auth") {
                                 "auth/index.html"
                             } else {
                                 &route

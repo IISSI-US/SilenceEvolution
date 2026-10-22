@@ -13,7 +13,7 @@ const root = document.getElementById("root");
 
 render(
     () => (
-        <Router root={Auth} base="/auth">
+        <Router root={Auth} base={location.pathname.startsWith("/auth2") ? "/auth2" : "/auth"}>
             <Route path="/*" component={Login} />
             <Route path="/signup" component={Signup} />
         </Router>
