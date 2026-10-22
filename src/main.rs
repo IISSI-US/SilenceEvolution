@@ -333,6 +333,17 @@ async fn try_main() -> Result<ResultContext> {
                         }.print();
                     }
 
+                    // Check the address before announcing the server: Waveless panics when it
+                    // can't bind it (typically another `silence run` still running).
+                    if let Some(listening_addr) = listening_addr {
+                        if let Err(err) = std::net::TcpListener::bind(listening_addr) {
+                            return Err(eyre!("Cannot listen on {}: {}.", listening_addr, err))
+                                .suggestion(
+                                    "Stop the other server using it (another `silence run`?) or choose another address with `--listen`.",
+                                );
+                        }
+                    }
+
                     let format_link = |mut link: String| -> String {
                         if !link.starts_with("http") {
                             link.insert_str(0, "http://");
