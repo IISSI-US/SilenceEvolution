@@ -153,12 +153,15 @@ pub async fn new_project(
 
         create_dir(project_path.join("tests")).await?;
 
-        create_dir(project_path.join(if prefer_web_directory {
+        let web_dir = project_path.join(if prefer_web_directory {
             "web"
         } else {
             "static"
-        }))
-        .await?;
+        });
+
+        create_dir(&web_dir).await?;
+
+        write(web_dir.join("index.html"), setup::WEB_INDEX).await?;
     }
 
     return Ok(format!(

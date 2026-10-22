@@ -75,8 +75,11 @@ async fn is_empty_dir(dir: &Path) -> Result<bool> {
     Ok(true)
 }
 
-/// Creates the project's files in `dir`: `config.json` with the default settings and the
-/// `endpoints`, `tests` and `web` folders.
+/// Starting page of a new project's `web/` folder: tells the student to build the front-end there.
+pub const WEB_INDEX: &str = include_str!("../templates/web/index.html");
+
+/// Creates the project's files in `dir`: `config.json` with the default settings, the
+/// `endpoints`, `tests` and `web` folders, and `web/index.html`.
 pub async fn init_project(dir: &Path) -> Result<()> {
     let content = serde_json::to_string_pretty(&Config::default())?;
 
@@ -85,6 +88,8 @@ pub async fn init_project(dir: &Path) -> Result<()> {
     for folder in ["endpoints", "tests", "web"] {
         create_dir_all(dir.join(folder)).await?;
     }
+
+    write(dir.join("web").join("index.html"), WEB_INDEX).await?;
 
     Ok(())
 }

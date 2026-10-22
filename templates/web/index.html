@@ -1,0 +1,156 @@
+<!doctype html>
+<!-- SilenceEvolution
+     Copyright (C) 2026 DEAL research group, Universidad de Sevilla
+
+     Starting page of a new project's `web/` folder (created by `silence new` and by `silence run`
+     in an empty directory). Students replace it with their own front-end. -->
+<html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Mi proyecto Silence</title>
+        <style>
+            :root {
+                color-scheme: light dark;
+                --accent: #2f5bd3;
+                --muted: #5d6878;
+                --border: #dfe3e8;
+                --code: #f3f5f8;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --accent: #7c9cf5;
+                    --muted: #9aa5b5;
+                    --border: #2b3340;
+                    --code: #181d25;
+                }
+            }
+            body {
+                max-width: 760px;
+                margin: 0 auto;
+                padding: 48px 20px;
+                font-family: system-ui, sans-serif;
+                line-height: 1.6;
+            }
+            h1 {
+                margin-bottom: 4px;
+            }
+            .lead {
+                color: var(--muted);
+                margin-top: 0;
+            }
+            code,
+            pre {
+                font-family: ui-monospace, Menlo, Consolas, monospace;
+                font-size: 0.9em;
+                background: var(--code);
+                border-radius: 4px;
+            }
+            code {
+                padding: 1px 5px;
+            }
+            pre {
+                padding: 12px 14px;
+                overflow-x: auto;
+                border: 1px solid var(--border);
+            }
+            a {
+                color: var(--accent);
+            }
+            .box {
+                border: 1px solid var(--border);
+                border-left: 4px solid var(--accent);
+                border-radius: 6px;
+                padding: 12px 16px;
+                margin: 24px 0;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.9em;
+            }
+            td {
+                padding: 4px 8px;
+                border-bottom: 1px solid var(--border);
+            }
+            td:first-child {
+                width: 70px;
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Tu front-end va aquí</h1>
+        <p class="lead">
+            Esta página es <code>web/index.html</code> de tu proyecto Silence.
+        </p>
+
+        <div class="box">
+            Desarrolla el front-end de tu aplicación (HTML, CSS y JavaScript)
+            en la carpeta <code>web/</code> del proyecto y sustituye esta
+            página por la tuya. Silence sirve todo lo que pongas en esa carpeta
+            en <code>/</code>: por ejemplo, <code>web/css/estilos.css</code> se
+            sirve en <code>/css/estilos.css</code>.
+        </div>
+
+        <h2>Usar la API desde JavaScript</h2>
+        <p>
+            Tu front-end se comunica con la base de datos a través de la API de
+            Silence, en la misma dirección que esta página:
+        </p>
+        <pre><code>const respuesta = await fetch("/api/v1/departments");
+const departamentos = await respuesta.json();</code></pre>
+
+        <h2>Endpoints de tu proyecto</h2>
+        <p id="estado">Cargando…</p>
+        <table id="endpoints"></table>
+
+        <h2>Panel de administración</h2>
+        <p>
+            Desde el <a href="/admin">panel de administración</a> puedes
+            configurar la base de datos, cargar y editar endpoints, gestionar
+            usuarios y roles, probar la API y ver la consola del servidor.
+        </p>
+
+        <script>
+            // Lists the project's endpoints (the admin panel's own API is left out).
+            (async () => {
+                const estado = document.getElementById("estado");
+                const tabla = document.getElementById("endpoints");
+
+                try {
+                    const respuesta = await fetch("/api/internal/endpoints", {
+                        headers: { "Cache-Control": "no-cache" },
+                    });
+                    const grupos = await respuesta.json();
+                    const endpoints = grupos
+                        .flatMap(([, lista]) => lista)
+                        .filter(
+                            (endpoint) =>
+                                endpoint.execute &&
+                                !(endpoint.version ?? "").startsWith("internal"),
+                        );
+
+                    if (endpoints.length === 0) {
+                        estado.textContent =
+                            "Todavía no hay endpoints: configura la base de datos y pulsa «Load endpoints» en el panel de administración.";
+                        return;
+                    }
+
+                    estado.textContent = `${endpoints.length} endpoints disponibles:`;
+
+                    for (const endpoint of endpoints) {
+                        const fila = tabla.insertRow();
+                        fila.insertCell().textContent = endpoint.method.toUpperCase();
+                        fila.insertCell().textContent = ["/api", endpoint.version, endpoint.route]
+                            .filter(Boolean)
+                            .join("/");
+                    }
+                } catch {
+                    estado.textContent =
+                        "No se ha podido consultar la API: ¿está configurada la base de datos en el panel de administración?";
+                }
+            })();
+        </script>
+    </body>
+</html>
