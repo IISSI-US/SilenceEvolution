@@ -13,8 +13,10 @@ import { SortableColumnCell } from "@admin/components/List";
 import {
     children,
     createEffect,
+    createMemo,
     createResource,
     createSignal,
+    For,
     Index,
     on,
     Show,
@@ -39,6 +41,21 @@ export default (props: RouteSectionProps) => {
     const app_cx = useContext(AppCx)!;
 
     const [endpoints, { refetch }] = app_cx.get_resource("endpoints");
+    const [users] = app_cx.get_resource("users");
+
+    // Roles offered in the grid: the users' roles plus those already used by endpoints.
+    const known_roles = createMemo(() =>
+        [
+            ...new Set([
+                ...(users() ?? []).map((user) => user.role ?? ""),
+                ...(endpoints() ?? []).flatMap(
+                    (entry) => entry.endpoint.allowed_roles ?? [],
+                ),
+            ]),
+        ]
+            .filter((role) => role.length > 0)
+            .sort(),
+    );
 
     const navigate = useNavigate();
 
@@ -169,6 +186,7 @@ export default (props: RouteSectionProps) => {
         refetch();
     };
 
+    /** Saves the roles chosen in the grid (`value`: a role, several comma separated, or ""). */
     const save_roles = (entry: EndpointByFile, text: string) => {
         const roles = text
             .split(",")
@@ -177,8 +195,12 @@ export default (props: RouteSectionProps) => {
 
         const current = entry.endpoint.allowed_roles ?? [];
 
+        // A role can only be checked for an authenticated user: choosing one requires auth.
         if (roles.join(",") !== current.join(","))
-            update_endpoint(entry, { allowed_roles: roles });
+            update_endpoint(entry, {
+                allowed_roles: roles,
+                ...(roles.length > 0 ? { require_auth: true } : {}),
+            });
     };
 
     // `Load endpoints`: discovers the database's schema and (re)loads the generated endpoints.
@@ -592,28 +614,15 @@ export default (props: RouteSectionProps) => {
                                                         event.stopPropagation()
                                                     }
                                                 >
-                                                    <input
-                                                        class="input input-xs w-36 font-mono"
-                                                        placeholder="any role"
-                                                        title="Allowed roles, comma separated (Enter to save)"
-                                                        value={(
-                                                            endpoint().endpoint
-                                                                .allowed_roles ??
-                                                            []
-                                                        ).join(", ")}
+                                                    <select
+                                                        class="select select-xs w-36 font-mono"
+                                                        title="Allowed roles"
                                                         disabled={
                                                             !is_editable(
                                                                 endpoint(),
                                                             )
                                                         }
-                                                        onKeyDown={(event) => {
-                                                            if (
-                                                                event.key ===
-                                                                "Enter"
-                                                            )
-                                                                event.currentTarget.blur();
-                                                        }}
-                                                        onBlur={(event) =>
+                                                        onChange={(event) =>
                                                             save_roles(
                                                                 endpoint(),
                                                                 event
@@ -621,7 +630,68 @@ export default (props: RouteSectionProps) => {
                                                                     .value,
                                                             )
                                                         }
-                                                    />
+                                                    >
+                                                        <option
+                                                            value=""
+                                                            selected={
+                                                                (
+                                                                    endpoint()
+                                                                        .endpoint
+                                                                        .allowed_roles ??
+                                                                    []
+                                                                ).length === 0
+                                                            }
+                                                        >
+                                                            any role
+                                                        </option>
+                                                        {/* Several roles (set in the editor) are kept as one option. */}
+                                                        <Show
+                                                            when={
+                                                                (
+                                                                    endpoint()
+                                                                        .endpoint
+                                                                        .allowed_roles ??
+                                                                    []
+                                                                ).length > 1
+                                                            }
+                                                        >
+                                                            <option
+                                                                value={endpoint().endpoint.allowed_roles.join(
+                                                                    ",",
+                                                                )}
+                                                                selected
+                                                            >
+                                                                {endpoint().endpoint.allowed_roles.join(
+                                                                    ", ",
+                                                                )}
+                                                            </option>
+                                                        </Show>
+                                                        <For
+                                                            each={known_roles()}
+                                                        >
+                                                            {(role) => (
+                                                                <option
+                                                                    value={role}
+                                                                    selected={
+                                                                        (
+                                                                            endpoint()
+                                                                                .endpoint
+                                                                                .allowed_roles ??
+                                                                            []
+                                                                        )
+                                                                            .length ===
+                                                                            1 &&
+                                                                        endpoint()
+                                                                            .endpoint
+                                                                            .allowed_roles[0] ===
+                                                                            role
+                                                                    }
+                                                                >
+                                                                    {role}
+                                                                </option>
+                                                            )}
+                                                        </For>
+                                                    </select>
                                                 </div>
                                                 <div
                                                     class="table-cell"
