@@ -6,6 +6,7 @@ import { type Endpoint, type EndpointByFile } from "@admin/endpoints";
 
 import SubPage from "@admin/components/SubPage";
 import Dialog from "@admin/components/Dialog";
+import RolesPicker from "@admin/components/RolesPicker";
 import AlertBox, { type AlertStruct } from "@admin/components/AlertContainer";
 import SearchButton from "@admin/components/SearchButton";
 import { SortableColumnCell } from "@admin/components/List";
@@ -16,7 +17,6 @@ import {
     createMemo,
     createResource,
     createSignal,
-    For,
     Index,
     on,
     Show,
@@ -186,13 +186,8 @@ export default (props: RouteSectionProps) => {
         refetch();
     };
 
-    /** Saves the roles chosen in the grid (`value`: a role, several comma separated, or ""). */
-    const save_roles = (entry: EndpointByFile, text: string) => {
-        const roles = text
-            .split(",")
-            .map((role) => role.trim())
-            .filter((role) => role.length > 0);
-
+    /** Saves the roles chosen in the grid (none: any role). */
+    const save_roles = (entry: EndpointByFile, roles: Array<string>) => {
         const current = entry.endpoint.allowed_roles ?? [];
 
         // A role can only be checked for an authenticated user: choosing one requires auth.
@@ -315,7 +310,9 @@ export default (props: RouteSectionProps) => {
                 </div>
 
                 <Show
-                    when={!endpoints.loading}
+                    // Only the first load shows the spinner: reloading (e.g. after editing the auth or
+                    // the roles in the grid) keeps the grid mounted.
+                    when={!endpoints.loading || endpoints.latest !== undefined}
                     fallback={
                         <div class="flex w-full my-8 justify-center">
                             <span class="loading loading-spinner loading-xl"></span>
@@ -627,84 +624,25 @@ export default (props: RouteSectionProps) => {
                                                         event.stopPropagation()
                                                     }
                                                 >
-                                                    <select
-                                                        class="select select-xs w-36 font-mono"
-                                                        title="Allowed roles"
+                                                    <RolesPicker
+                                                        roles={
+                                                            endpoint().endpoint
+                                                                .allowed_roles ??
+                                                            []
+                                                        }
+                                                        known_roles={known_roles()}
                                                         disabled={
                                                             !is_editable(
                                                                 endpoint(),
                                                             )
                                                         }
-                                                        onChange={(event) =>
+                                                        on_change={(roles) =>
                                                             save_roles(
                                                                 endpoint(),
-                                                                event
-                                                                    .currentTarget
-                                                                    .value,
+                                                                roles,
                                                             )
                                                         }
-                                                    >
-                                                        <option
-                                                            value=""
-                                                            selected={
-                                                                (
-                                                                    endpoint()
-                                                                        .endpoint
-                                                                        .allowed_roles ??
-                                                                    []
-                                                                ).length === 0
-                                                            }
-                                                        >
-                                                            any role
-                                                        </option>
-                                                        {/* Several roles (set in the editor) are kept as one option. */}
-                                                        <Show
-                                                            when={
-                                                                (
-                                                                    endpoint()
-                                                                        .endpoint
-                                                                        .allowed_roles ??
-                                                                    []
-                                                                ).length > 1
-                                                            }
-                                                        >
-                                                            <option
-                                                                value={endpoint().endpoint.allowed_roles.join(
-                                                                    ",",
-                                                                )}
-                                                                selected
-                                                            >
-                                                                {endpoint().endpoint.allowed_roles.join(
-                                                                    ", ",
-                                                                )}
-                                                            </option>
-                                                        </Show>
-                                                        <For
-                                                            each={known_roles()}
-                                                        >
-                                                            {(role) => (
-                                                                <option
-                                                                    value={role}
-                                                                    selected={
-                                                                        (
-                                                                            endpoint()
-                                                                                .endpoint
-                                                                                .allowed_roles ??
-                                                                            []
-                                                                        )
-                                                                            .length ===
-                                                                            1 &&
-                                                                        endpoint()
-                                                                            .endpoint
-                                                                            .allowed_roles[0] ===
-                                                                            role
-                                                                    }
-                                                                >
-                                                                    {role}
-                                                                </option>
-                                                            )}
-                                                        </For>
-                                                    </select>
+                                                    />
                                                 </div>
                                                 <div
                                                     class="table-cell"
