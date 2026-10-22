@@ -99,6 +99,13 @@ impl Service<Request<ConnBody>> for StaticService {
                                 );
 
                                 Some(content)
+                            } else if route.is_empty() {
+                                // No `index.html` in the project yet: show the starting page that
+                                // tells the student to build the front-end there.
+                                response =
+                                    response.header("Content-Type", "text/html; charset=utf-8");
+
+                                Some(setup::WEB_INDEX.as_bytes().to_vec())
                             } else {
                                 None
                             }

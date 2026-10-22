@@ -829,6 +829,9 @@ req GET /admin
 check "the admin panel is served in setup mode" status_is 200
 req GET /
 check "GET / serves the new project's web/index.html" body_contains "Tu front-end va aquí"
+rm "$SETUP_DIR/web/index.html"
+req GET /
+check "without web/index.html, GET / still serves the starting page" eval 'status_is 200 && body_contains "Tu front-end va aquí"'
 req GET /_setup/config
 check "GET /_setup/config returns the default settings" jq_ok '.databases_conn.main.db == "example_db"'
 req POST /_setup/databases "$(json --arg host "$DB_HOST:$DB_PORT" --arg user "$DB_USER" --arg pass "$DB_PASSWORD" '{host: $host, username: $user, password: $pass}')"
