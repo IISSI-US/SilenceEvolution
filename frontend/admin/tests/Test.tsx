@@ -1,6 +1,12 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
+import {
+    adopt_token,
+    forget_test_user,
+    test_token,
+    test_user,
+} from "@admin/TestUser";
 import AppCx from "@admin/AppCx";
 
 import { type Test, type TestByFile } from "@admin/tests";
@@ -72,9 +78,8 @@ export default (_: RouteSectionProps) => {
         | undefined
     >(undefined);
 
-    const [authorization, set_authorization] = createSignal<string | undefined>(
-        localStorage.getItem("test_authorization") ?? undefined,
-    );
+    // The token comes from the user signed in on the Authentication page (see TestUser.tsx).
+    const authorization = test_token;
 
     const [req_body, set_req_body] = createSignal<string | undefined>(
         undefined,
@@ -353,7 +358,7 @@ export default (_: RouteSectionProps) => {
         const res = await fetch(base_route, {
             method: endpoint_by_file()!.endpoint.method,
             headers: {
-                Authorization: localStorage.getItem("test_authorization") ?? "",
+                Authorization: test_token() ?? "",
             },
             body:
                 endpoint_by_file()!.endpoint.method.toLowerCase() === "get"
@@ -364,15 +369,20 @@ export default (_: RouteSectionProps) => {
 
         const body = await res.json().catch((_) => new Object());
 
-        if ("token" in body) {
-            localStorage.setItem("test_authorization", body["token"]);
-            set_authorization(body["token"]);
+        // A token in the response (e.g. testing the Login endpoint) becomes the test user.
+        if (
+            body &&
+            typeof body === "object" &&
+            typeof body["token"] === "string"
+        ) {
+            await adopt_token(body["token"]);
         }
 
         if (!res.ok) {
-            if (res.status === 401) {
-                localStorage.removeItem("test_authorization");
-                set_authorization(undefined);
+            // Forget the test user only when its session is no longer valid (a 401 is also
+            // returned when the user lacks the endpoint's role).
+            if (res.status === 401 && body?.["error"] === "Invalid session.") {
+                forget_test_user();
             }
 
             set_alert({
@@ -791,7 +801,10 @@ export default (_: RouteSectionProps) => {
                                                 );
                                             }}
                                         >
-                                            <Icon name="plus" class="lg:hidden!" />
+                                            <Icon
+                                                name="plus"
+                                                class="lg:hidden!"
+                                            />
                                             <span class="not-lg:hidden">
                                                 Add query param
                                             </span>
@@ -881,10 +894,12 @@ export default (_: RouteSectionProps) => {
                             <div class="font-mono break-all">
                                 {authorization() !== undefined ? (
                                     <span class="text-green-500">
-                                        {authorization()!}
+                                        {test_user()?.name} ({authorization()!})
                                     </span>
                                 ) : (
-                                    <span class="text-red-500">no</span>
+                                    <span class="text-red-500">
+                                        no (sign in on the Authentication page)
+                                    </span>
                                 )}
                             </div>
                         </div>

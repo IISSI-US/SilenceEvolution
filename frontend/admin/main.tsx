@@ -1,6 +1,7 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
+import Authentication from "@admin/Authentication";
 import { AppCxProvider } from "@admin/AppCx";
 
 import Admin from "@admin/Admin";
@@ -22,7 +23,9 @@ import { render } from "solid-js/web";
 import { Router, Route } from "@solidjs/router";
 
 // The panel is served at `/admin` and `/admin2`.
-const ADMIN_BASE = location.pathname.startsWith("/admin2") ? "/admin2" : "/admin";
+const ADMIN_BASE = location.pathname.startsWith("/admin2")
+    ? "/admin2"
+    : "/admin";
 
 const root = document.getElementById("root");
 
@@ -50,6 +53,7 @@ render(
                     <Route path="/new" component={ModifyUser} />
                 </Route>
                 <Route path="/config" component={Config} />
+                <Route path="/authentication" component={Authentication} />
             </Router>
         </AppCxProvider>
     ),
