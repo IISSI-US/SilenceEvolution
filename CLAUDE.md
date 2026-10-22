@@ -56,6 +56,9 @@ Rewrite of `frontend/` in plain HTML + Sass + ES modules, without Node/Bun. It l
 
 - `panel/admin.html`, `panel/auth.html`: served at `/admin2` and `/auth2` (hash routing: `/admin2#/endpoints`).
 - `panel/js/`: native ES modules, no bundler. `dom.js` (`h()` helper; text only via text nodes, never `innerHTML`), `highlight.js` (SQL/JSON), `ansi.js`, `router.js`, one module per view.
+- Migrating to Solid without a build step (issues #4–#10): components use `html` tagged templates from `solid-js/html` instead of JSX (`<${Show} when=${...}>…<//>`, reactive values as functions `${() => x()}`). `views/users.js` is the first view migrated.
+- `panel/vendor/`: unmodified Solid / @solidjs/router ES modules mapped with an import map in the HTML; versions and update steps in `panel/vendor/README.md`.
+- Commits that address a review issue reference it (`Refs #N`, `Closes #N` when done).
 - `panel/styles/*.scss`: compiled by `build.rs` with the `grass` crate into `target/panel_styles/panel.css`, served at `/_silence/panel.css`. Other files are served at `/_silence/<path>`.
 - In debug builds rust-embed reads `panel/` from disk: HTML/JS changes need no rebuild; Sass changes need `cargo build`.
 
