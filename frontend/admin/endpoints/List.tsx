@@ -5,6 +5,7 @@ import AppCx from "@admin/AppCx";
 import { type Endpoint, type EndpointByFile } from "@admin/endpoints";
 
 import SubPage from "@admin/components/SubPage";
+import Dialog from "@admin/components/Dialog";
 import AlertBox, { type AlertStruct } from "@admin/components/AlertContainer";
 import SearchButton from "@admin/components/SearchButton";
 import { SortableColumnCell } from "@admin/components/List";
@@ -22,7 +23,12 @@ import {
 
 import { Portal } from "solid-js/web";
 
-import { A, useNavigate, type RouteSectionProps } from "@solidjs/router";
+import {
+    A,
+    useLocation,
+    useNavigate,
+    type RouteSectionProps,
+} from "@solidjs/router";
 
 import { filter, pipe, sortBy } from "remeda";
 
@@ -123,6 +129,58 @@ export default (props: RouteSectionProps) => {
         }),
     );
 
+    // Internal endpoints (Silence's own API) can't be modified.
+    const is_editable = (entry: EndpointByFile) =>
+        entry.path !== null ||
+        (entry.endpoint.execute !== null &&
+            !(entry.endpoint.version ?? "").startsWith("internal"));
+
+    /** Saves a change of an endpoint's access from the grid. */
+    const update_endpoint = async (
+        entry: EndpointByFile,
+        patch: Partial<Endpoint>,
+    ) => {
+        const res = await fetch(
+            `/api/internal/admin/endpoints/${entry.endpoint.id}`,
+            {
+                method: "PUT",
+                headers: { "Cache-Control": "no-cache" },
+                body: JSON.stringify(patch),
+            },
+        );
+
+        if (res.ok) {
+            set_alert({
+                value:
+                    entry.path === null
+                        ? `Endpoint ${entry.endpoint.id} updated; as it was generated from the database, it's now saved in endpoints/default.json.`
+                        : `Endpoint ${entry.endpoint.id} updated.`,
+            });
+        } else {
+            const body = (await res.json().catch(() => ({}))) as {
+                error?: string;
+            };
+            set_alert({
+                value: body.error ?? "Cannot update the endpoint.",
+                is_error: true,
+            });
+        }
+
+        refetch();
+    };
+
+    const save_roles = (entry: EndpointByFile, text: string) => {
+        const roles = text
+            .split(",")
+            .map((role) => role.trim())
+            .filter((role) => role.length > 0);
+
+        const current = entry.endpoint.allowed_roles ?? [];
+
+        if (roles.join(",") !== current.join(","))
+            update_endpoint(entry, { allowed_roles: roles });
+    };
+
     // `Load endpoints`: discovers the database's schema and (re)loads the generated endpoints.
     const [loading_endpoints, set_loading_endpoints] = createSignal(false);
 
@@ -155,14 +213,21 @@ export default (props: RouteSectionProps) => {
     // A sub-route (edit, test...) is shown as a full page that replaces the list.
     const sub_page = children(() => props.children);
 
+    // Testing an endpoint opens a modal over the list; editing replaces the list with a page.
+    const location = useLocation();
+    const is_test = () => location.pathname.endsWith("/test");
+
     return (
         <>
-            <Show when={sub_page() !== undefined}>
+            <Show when={sub_page() !== undefined && !is_test()}>
                 <SubPage parent_path="/endpoints" parent_title="Endpoints">
                     {sub_page()}
                 </SubPage>
             </Show>
-            <div classList={{ hidden: sub_page() !== undefined }}>
+            <Show when={sub_page() !== undefined && is_test()}>
+                <Dialog parent_path="/endpoints">{sub_page()}</Dialog>
+            </Show>
+            <div classList={{ hidden: sub_page() !== undefined && !is_test() }}>
                 <div class="flex flex-col gap-3 pb-3 items-center w-full">
                     <div class="flex not-lg:flex-col not-lg:gap-3 items-center w-full">
                         <h1 class="text-4xl font-bold">Endpoints</h1>
@@ -280,7 +345,14 @@ export default (props: RouteSectionProps) => {
                                     >
                                         Query params
                                     </div>
-                                    <div class="table-cell">Body params</div>
+                                    <div
+                                        class="table-cell"
+                                        classList={{
+                                            "hidden!": !get_full_data(),
+                                        }}
+                                    >
+                                        Body params
+                                    </div>
                                     <div
                                         class="table-cell"
                                         classList={{
@@ -290,14 +362,7 @@ export default (props: RouteSectionProps) => {
                                         Queries
                                     </div>
                                     <div class="table-cell">Requires auth</div>
-                                    <div
-                                        class="table-cell"
-                                        classList={{
-                                            "rounded-tr-xl!": !get_full_data(),
-                                        }}
-                                    >
-                                        Allowed roles
-                                    </div>
+                                    <div class="table-cell">Allowed roles</div>
                                     <div
                                         class="table-cell"
                                         classList={{
@@ -315,13 +380,14 @@ export default (props: RouteSectionProps) => {
                                         Auto-generated
                                     </div>
                                     <div
-                                        class="table-cell rounded-tr-xl!"
+                                        class="table-cell"
                                         classList={{
                                             "hidden!": !get_full_data(),
                                         }}
                                     >
                                         Path
                                     </div>
+                                    <div class="table-cell rounded-tr-xl!"></div>
                                 </div>
                             </div>
                             <div class="table-row-group [&>div:nth-of-type(even)]:bg-base-200 [&>div]:hover:bg-base-300! [&>div]:transition [&>div]:duration-200 [&>div]:hover:scale-101 [&>div]:hover:cursor-pointer">
@@ -342,47 +408,15 @@ export default (props: RouteSectionProps) => {
                                         <>
                                             <div
                                                 class="table-row border-b border-b-base-300 [&_span]:text-xs [&_span]:lg:text-sm [&_div]:size-auto [&_div]:p-2 [&_div]:align-middle"
-                                                // @ts-ignore
-                                                popovertarget={`endpoint-row-${ix}-dropdown`}
-                                                style={`anchor-name:--endpoint-row-${ix}`}
-                                                onPointerDown={(event) => {
-                                                    const target =
-                                                        event.currentTarget;
-
-                                                    const any_open_popover =
-                                                        document.querySelector(
-                                                            ".dropdown:popover-open",
-                                                        );
-                                                    if (
-                                                        any_open_popover !==
-                                                        null
-                                                    ) {
-                                                        target.setAttribute(
-                                                            "block_popover",
-                                                            "true",
-                                                        );
-                                                    }
-                                                }}
-                                                onClick={(event) => {
-                                                    const target =
-                                                        event.currentTarget;
-
-                                                    const block_popover =
-                                                        target.getAttribute(
-                                                            "block_popover",
-                                                        ) === "true";
-
-                                                    target.removeAttribute(
-                                                        "block_popover",
-                                                    );
-
-                                                    if (block_popover) return;
-
-                                                    const dropdown =
-                                                        target.nextSibling as HTMLUListElement;
-
-                                                    dropdown.togglePopover();
-                                                }}
+                                                onClick={() =>
+                                                    navigate(
+                                                        `/endpoints/${endpoint().endpoint.id}/modify`,
+                                                        {
+                                                            replace: false,
+                                                            scroll: false,
+                                                        },
+                                                    )
+                                                }
                                             >
                                                 <div class="table-cell font-light pl-8! align-middle">
                                                     {ix}
@@ -442,7 +476,13 @@ export default (props: RouteSectionProps) => {
                                                           )
                                                         : "—"}
                                                 </div>
-                                                <div class="table-cell font-mono">
+                                                <div
+                                                    class="table-cell font-mono"
+                                                    classList={{
+                                                        "hidden!":
+                                                            !get_full_data(),
+                                                    }}
+                                                >
                                                     {endpoint().endpoint
                                                         .body_params
                                                         ? endpoint().endpoint.body_params.join(
@@ -513,29 +553,75 @@ export default (props: RouteSectionProps) => {
                                                         }
                                                     }
                                                 </div>
+                                                {/* Access is edited in place (saved on change). */}
                                                 <div
                                                     class="table-cell"
-                                                    classList={{
-                                                        "text-success":
-                                                            endpoint().endpoint
-                                                                .require_auth,
-                                                        "text-error":
-                                                            !endpoint().endpoint
-                                                                .require_auth,
-                                                    }}
+                                                    onClick={(event) =>
+                                                        event.stopPropagation()
+                                                    }
                                                 >
-                                                    {endpoint().endpoint
-                                                        .require_auth
-                                                        ? "Yes"
-                                                        : "No"}
+                                                    <input
+                                                        type="checkbox"
+                                                        class="toggle toggle-sm toggle-success"
+                                                        title="Requires authentication"
+                                                        checked={
+                                                            endpoint().endpoint
+                                                                .require_auth
+                                                        }
+                                                        disabled={
+                                                            !is_editable(
+                                                                endpoint(),
+                                                            )
+                                                        }
+                                                        onChange={(event) =>
+                                                            update_endpoint(
+                                                                endpoint(),
+                                                                {
+                                                                    require_auth:
+                                                                        event
+                                                                            .currentTarget
+                                                                            .checked,
+                                                                },
+                                                            )
+                                                        }
+                                                    />
                                                 </div>
-                                                <div class="table-cell font-mono">
-                                                    {endpoint().endpoint
-                                                        .allowed_roles
-                                                        ? endpoint().endpoint.allowed_roles.join(
-                                                              ", ",
-                                                          )
-                                                        : "—"}
+                                                <div
+                                                    class="table-cell font-mono"
+                                                    onClick={(event) =>
+                                                        event.stopPropagation()
+                                                    }
+                                                >
+                                                    <input
+                                                        class="input input-xs w-36 font-mono"
+                                                        placeholder="any role"
+                                                        title="Allowed roles, comma separated (Enter to save)"
+                                                        value={(
+                                                            endpoint().endpoint
+                                                                .allowed_roles ??
+                                                            []
+                                                        ).join(", ")}
+                                                        disabled={
+                                                            !is_editable(
+                                                                endpoint(),
+                                                            )
+                                                        }
+                                                        onKeyDown={(event) => {
+                                                            if (
+                                                                event.key ===
+                                                                "Enter"
+                                                            )
+                                                                event.currentTarget.blur();
+                                                        }}
+                                                        onBlur={(event) =>
+                                                            save_roles(
+                                                                endpoint(),
+                                                                event
+                                                                    .currentTarget
+                                                                    .value,
+                                                            )
+                                                        }
+                                                    />
                                                 </div>
                                                 <div
                                                     class="table-cell"
@@ -582,53 +668,11 @@ export default (props: RouteSectionProps) => {
                                                 >
                                                     {endpoint().path ?? "—"}
                                                 </div>
-                                            </div>
-                                            <ul
-                                                id={`endpoint-row-${ix}-dropdown`}
-                                                class="dropdown menu w-1/4 rounded-box bg-base-200 border-base-300 border shadow-lg opacity-0 [&:popover-open]:opacity-100 starting:opacity-0 transition-all transition-discrete duration-200"
-                                                classList={{
-                                                    hidden:
-                                                        resolved_children() !==
-                                                        undefined,
-                                                }}
-                                                style={`position-anchor:--endpoint-row-${ix}; inset: auto; align-self: anchor-center; justify-self: anchor-left; margin: 0.5rem;`}
-                                                onClick={(event) =>
-                                                    (
-                                                        event.currentTarget as HTMLUListElement
-                                                    ).togglePopover()
-                                                }
-                                                onMouseLeave={(event) =>
-                                                    (
-                                                        event.currentTarget as HTMLUListElement
-                                                    ).togglePopover()
-                                                }
-                                                popover
-                                            >
-                                                <li>
+                                                <div class="table-cell pr-4!">
                                                     <button
-                                                        onClick={(_) => {
-                                                            navigate(
-                                                                `/endpoints/${endpoint().endpoint.id}/modify`,
-                                                                {
-                                                                    replace: false,
-                                                                    scroll: false,
-                                                                },
-                                                            );
-                                                        }}
-                                                    >
-                                                        <Icon
-                                                            name="braces"
-                                                            class="scale-90"
-                                                        />
-                                                        <span class="font-bold">
-                                                            Modify
-                                                        </span>
-                                                    </button>
-                                                </li>
-
-                                                <li>
-                                                    <button
-                                                        onClick={(_) => {
+                                                        class="btn btn-xs"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
                                                             navigate(
                                                                 `/endpoints/${endpoint().endpoint.id}/test`,
                                                                 {
@@ -640,14 +684,12 @@ export default (props: RouteSectionProps) => {
                                                     >
                                                         <Icon
                                                             name="tests"
-                                                            class="scale-90"
+                                                            class="size-4"
                                                         />
-                                                        <span class="font-bold">
-                                                            Test
-                                                        </span>
+                                                        Test
                                                     </button>
-                                                </li>
-                                            </ul>
+                                                </div>
+                                            </div>
                                         </>
                                     )}
                                 </Index>

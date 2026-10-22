@@ -898,7 +898,7 @@ export default (_: RouteSectionProps) => {
                                     </span>
                                 ) : (
                                     <span class="text-red-500">
-                                        no (sign in on the Authentication page)
+                                        no (authenticate a user in Users)
                                     </span>
                                 )}
                             </div>
