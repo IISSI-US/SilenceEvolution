@@ -8,9 +8,16 @@ use crate::*;
 #[folder = "./target/frontend"]
 pub struct StaticService;
 
-/// The new admin panel (plain HTML/JS), served at `/admin2`, `/auth2` and `/_silence/*`.
+/// The new admin panel, served at `/admin2`, `/auth2` and `/_silence/*`. Debug builds read
+/// `panel/` from disk; release builds embed the minified copy made by `build.rs`.
+#[cfg(debug_assertions)]
 #[derive(Clone, RustEmbed, Debug)]
 #[folder = "./panel"]
+pub struct PanelFiles;
+
+#[cfg(not(debug_assertions))]
+#[derive(Clone, RustEmbed, Debug)]
+#[folder = "./target/panel_dist"]
 pub struct PanelFiles;
 
 /// The admin panel's styles, compiled from `panel/styles` by `build.rs`.

@@ -105,6 +105,12 @@ derive_more = { version = "2.0", features = ["constructor", "display"] }
 
 [build-dependencies]
 grass = { version = "0.13.4", default-features = false }
+# JavaScript minifier for the admin panel in release builds (pinned: its API changes often).
+oxc_allocator = "=0.155.0"
+oxc_parser = "=0.155.0"
+oxc_span = "=0.155.0"
+oxc_minifier = "=0.155.0"
+oxc_codegen = "=0.155.0"
 
 [profile.dev.package."*"]
 debug = false

@@ -65,6 +65,7 @@ Rewrite of `frontend/` in plain HTML + Sass + ES modules, without Node/Bun. It l
 - Commits that address a review issue reference it (`Refs #N`, `Closes #N` when done).
 - `panel/styles/*.scss`: compiled by `build.rs` with the `grass` crate into `target/panel_styles/panel.css`, served at `/_silence/panel.css`. Other files are served at `/_silence/<path>`.
 - In debug builds rust-embed reads `panel/` from disk: HTML/JS changes need no rebuild; Sass changes need `cargo build`.
+- Release builds embed `target/panel_dist`, a copy of `panel/` made by `build.rs` with every `.js` minified by `oxc` (pinned `=0.155.0`; if a file can't be parsed it's embedded as is with a cargo warning). Check release-only issues with `cargo build --release`.
 
 Project layout created by `silence new`: `config.json`, `endpoints/*.json`, `tests/*.json`, `web/`.
 
