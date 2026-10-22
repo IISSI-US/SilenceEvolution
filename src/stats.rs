@@ -13,6 +13,9 @@
 //! - Executions: `MySQLExecutorProxy` (every SQL endpoint, generated ones included, see
 //!   `AppCx::discover_endpoints`) records the status and duration of each execution.
 //!
+//! The front-end (the project's `web/` files, served by `StaticService`) is counted apart from
+//! the API: requests, missing files and bytes by path.
+//!
 
 use crate::*;
 
@@ -38,6 +41,17 @@ pub struct Stats {
     requests: BTreeMap<String, u64>,
     /// Executions by endpoint id.
     executions: BTreeMap<String, Execution>,
+    /// Front-end files by path (`stats.json` files saved before this existed have none).
+    #[serde(default)]
+    web: BTreeMap<String, WebFile>,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
+pub struct WebFile {
+    count: u64,
+    /// Requests for a file that doesn't exist (404).
+    not_found: u64,
+    bytes: u64,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
@@ -118,6 +132,45 @@ pub fn record_request(method: &str, path: &str) {
     }
 
     DIRTY.store(true, Ordering::Relaxed);
+}
+
+/// Records a request for a front-end file; `bytes` is `None` when it doesn't exist.
+pub fn record_web(path: &str, bytes: Option<usize>) {
+    let mut stats = STATS.lock().unwrap();
+    let key = if stats.web.len() >= MAX_REQUEST_KEYS && !stats.web.contains_key(path) {
+        "(other paths)"
+    } else {
+        path
+    };
+    let file = stats.web.entry(key.to_string()).or_default();
+
+    file.count += 1;
+
+    match bytes {
+        Some(bytes) => file.bytes += bytes as u64,
+        None => file.not_found += 1,
+    }
+
+    DIRTY.store(true, Ordering::Relaxed);
+}
+
+/// Kind of front-end file, from its extension (`/` and folders are pages).
+fn web_kind(path: &str) -> &'static str {
+    let extension = path
+        .rsplit('/')
+        .next()
+        .and_then(|name| name.rsplit_once('.'))
+        .map(|(_, extension)| extension.to_ascii_lowercase());
+
+    match extension.as_deref() {
+        None | Some("html" | "htm") => "page",
+        Some("css") => "style",
+        Some("js" | "mjs") => "script",
+        Some("png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "ico" | "avif") => "image",
+        Some("woff" | "woff2" | "ttf" | "otf") => "font",
+        Some("json") => "data",
+        _ => "other",
+    }
 }
 
 pub fn record_execution(endpoint_id: &str, status: u16, elapsed_ms: u64) {
@@ -272,6 +325,34 @@ pub async fn report() -> serde_json::Value {
         .map(|execution| execution.total_ms)
         .sum::<u64>();
 
+    let mut web_by_kind = BTreeMap::<&str, u64>::new();
+    let mut web_files = stats
+        .web
+        .iter()
+        .map(|(path, file)| {
+            *web_by_kind.entry(web_kind(path)).or_default() += file.count;
+
+            json!({
+                "path": path,
+                "kind": web_kind(path),
+                "requests": file.count,
+                "not_found": file.not_found,
+                "bytes": file.bytes,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    web_files.sort_by_key(|file| std::cmp::Reverse(file["requests"].as_u64()));
+
+    let web = json!({
+        "requests": stats.web.values().map(|file| file.count).sum::<u64>(),
+        "pages": web_by_kind.get("page").copied().unwrap_or(0),
+        "not_found": stats.web.values().map(|file| file.not_found).sum::<u64>(),
+        "bytes": stats.web.values().map(|file| file.bytes).sum::<u64>(),
+        "by_kind": web_by_kind,
+        "files": web_files,
+    });
+
     json!({
         "since": stats.since,
         "requests": total,
@@ -282,6 +363,7 @@ pub async fn report() -> serde_json::Value {
         "by_status": by_status,
         "endpoints": endpoints,
         "unmatched": unmatched,
+        "web": web,
     })
 }
 

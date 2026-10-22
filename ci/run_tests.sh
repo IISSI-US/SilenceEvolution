@@ -784,16 +784,22 @@ check "server is still running after the path traversal attempt" server_alive
 
 section "Usage statistics (/_setup/stats)"
 
+req GET /api/v1/no_such_route
+req GET /no_such_file.css
 req GET /_setup/stats
 check "the statistics count the requests made by the tests" jq_ok '.requests > 50 and .by_method.GET > 0 and .by_method.POST > 0'
 check "generated endpoints' executions are measured" jq_ok 'any(.endpoints[]; .id == "departments_GetMany" and .executions > 0)'
 check "failed executions are counted by status" jq_ok '.errors > 0 and (.by_status | keys | any(. == "500" or . == "400"))'
 check "requests rejected before running (auth) are counted" jq_ok 'any(.endpoints[]; .rejected > 0)'
+check "front-end requests are counted apart from the API" jq_ok 'any(.web.files[]; .path == "/index.html" and .kind == "page" and .requests > 0 and .bytes > 0)'
+check "missing front-end files are counted as not found" jq_ok '.web.not_found > 0 and .web.pages > 0'
+check "front-end files are not counted as API requests" jq_ok 'all(.unmatched | keys[]; test("index.html") | not)'
+check "unknown API routes are not counted as front-end files" jq_ok 'all(.web.files[]; .path | startswith("/api") | not)'
 req DELETE /_setup/stats
 check "DELETE /_setup/stats resets them" status_is 200
-check "the reset is saved in the project's stats.json" jq -e '.requests == {} and .executions == {}' "$WORK_DIR/project/stats.json"
+check "the reset is saved in the project's stats.json" jq -e '.requests == {} and .executions == {} and .web == {}' "$WORK_DIR/project/stats.json"
 req GET /_setup/stats
-check "after the reset only the reset request itself is left" jq_ok '.requests <= 1 and .executions == 0'
+check "after the reset only the reset request itself is left" jq_ok '.requests <= 1 and .executions == 0 and .web.requests == 0'
 
 # ---------------------------------------------------------------------------
 # Setup mode: `silence run` in an empty directory (see src/setup.rs)

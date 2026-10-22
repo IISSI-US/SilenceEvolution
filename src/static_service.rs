@@ -90,7 +90,7 @@ impl Service<Request<ConnBody>> for StaticService {
                                 static_path.push(&route);
                             }
 
-                            if let Ok(content) = read(static_path.to_owned()).await {
+                            let content = if let Ok(content) = read(static_path.to_owned()).await {
                                 response = response.header(
                                     "Content-Type",
                                     mime_guess::from_path(static_path)
@@ -108,7 +108,30 @@ impl Service<Request<ConnBody>> for StaticService {
                                 Some(setup::WEB_INDEX.as_bytes().to_vec())
                             } else {
                                 None
+                            };
+
+                            // Front-end usage, apart from the API's (requests under the API
+                            // prefix that match no endpoint also end up here: not counted).
+                            let api_prefix = RuntimeCx::acquire()
+                                .build()
+                                .read()
+                                .await
+                                .executor()
+                                .api_prefix()
+                                .trim_matches('/')
+                                .to_string();
+
+                            if api_prefix.is_empty()
+                                || !(route == api_prefix
+                                    || route.starts_with(&format!("{}/", api_prefix)))
+                            {
+                                stats::record_web(
+                                    &format!("/{}", route),
+                                    content.as_ref().map(Vec::len),
+                                );
                             }
+
+                            content
                         } else {
                             warn!(
                                 "Trying to get a static file from Silence's project but `serve_static_files` is disabled."

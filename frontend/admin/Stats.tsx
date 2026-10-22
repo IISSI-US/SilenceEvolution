@@ -23,6 +23,23 @@ interface EndpointStats {
     max_ms: number;
 }
 
+interface WebFileStats {
+    path: string;
+    kind: string;
+    requests: number;
+    not_found: number;
+    bytes: number;
+}
+
+interface WebStats {
+    requests: number;
+    pages: number;
+    not_found: number;
+    bytes: number;
+    by_kind: Record<string, number>;
+    files: WebFileStats[];
+}
+
 interface StatsReport {
     since: string;
     requests: number;
@@ -33,6 +50,7 @@ interface StatsReport {
     by_status: Record<string, number>;
     endpoints: EndpointStats[];
     unmatched: Record<string, number>;
+    web: WebStats;
 }
 
 const REFRESH_MS = 5000;
@@ -45,6 +63,13 @@ const fetch_stats = async (): Promise<StatsReport> => {
 
 const ms = (value: number) => `${value.toFixed(value < 10 ? 1 : 0)} ms`;
 
+const size = (bytes: number) =>
+    bytes < 1024
+        ? `${bytes} B`
+        : bytes < 1024 * 1024
+          ? `${(bytes / 1024).toFixed(1)} KB`
+          : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
 const percent = (part: number, total: number) =>
     total > 0 ? `${Math.round((part / total) * 100)}%` : "—";
 
@@ -55,6 +80,7 @@ const percent = (part: number, total: number) =>
 export default () => {
     const [stats, { refetch }] = createResource(fetch_stats);
     const [show_internal, set_show_internal] = createSignal(false);
+    const [view, set_view] = createSignal<"api" | "web">("api");
 
     const timer = setInterval(() => refetch(), REFRESH_MS);
     onCleanup(() => clearInterval(timer));
@@ -77,7 +103,7 @@ export default () => {
                 <div>
                     <h1 class="text-4xl font-bold">Stats</h1>
                     <p class="text-sm text-base-content/60 mt-2">
-                        Usage of the server
+                        Usage of the API and of the front-end (web/)
                         <Show when={stats()}>
                             {" "}
                             since {new Date(stats()!.since).toLocaleString()}
@@ -102,7 +128,139 @@ export default () => {
                 </div>
             </Show>
 
-            <Show when={stats()}>
+            <div role="tablist" class="tabs tabs-border">
+                <button
+                    role="tab"
+                    class="tab"
+                    classList={{ "tab-active": view() === "api" }}
+                    onClick={() => set_view("api")}
+                >
+                    API
+                </button>
+                <button
+                    role="tab"
+                    class="tab"
+                    classList={{ "tab-active": view() === "web" }}
+                    onClick={() => set_view("web")}
+                >
+                    Front-end
+                </button>
+            </div>
+
+            <Show when={stats() && view() === "web"}>
+                <div class="stats stats-vertical lg:stats-horizontal border border-base-300 bg-base-100">
+                    <div class="stat">
+                        <div class="stat-title">Requests</div>
+                        <div class="stat-value">{stats()!.web.requests}</div>
+                        <div class="stat-desc">files of web/ served</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-title">Page views</div>
+                        <div class="stat-value">{stats()!.web.pages}</div>
+                        <div class="stat-desc">HTML pages requested</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-title">Not found</div>
+                        <div
+                            class="stat-value"
+                            classList={{
+                                "text-error": stats()!.web.not_found > 0,
+                            }}
+                        >
+                            {stats()!.web.not_found}
+                        </div>
+                        <div class="stat-desc">
+                            {percent(
+                                stats()!.web.not_found,
+                                stats()!.web.requests,
+                            )}{" "}
+                            of the requests (missing files)
+                        </div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-title">Transferred</div>
+                        <div class="stat-value">{size(stats()!.web.bytes)}</div>
+                        <div class="stat-desc">without the browser cache</div>
+                    </div>
+                </div>
+
+                <div class="border border-base-300 rounded-box bg-base-100 lg:w-1/2">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Kind</th>
+                                <th class="text-right">Requests</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <For
+                                each={Object.entries(stats()!.web.by_kind)}
+                                fallback={
+                                    <tr>
+                                        <td colspan="2">No requests yet.</td>
+                                    </tr>
+                                }
+                            >
+                                {([kind, count]) => (
+                                    <tr>
+                                        <td>{kind}</td>
+                                        <td class="text-right">{count}</td>
+                                    </tr>
+                                )}
+                            </For>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h2 class="text-xl font-bold">By file</h2>
+                <div class="border border-base-300 rounded-box bg-base-100 overflow-x-auto">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Path</th>
+                                <th>Kind</th>
+                                <th class="text-right">Requests</th>
+                                <th class="text-right">Not found</th>
+                                <th class="text-right">Transferred</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <For
+                                each={stats()!.web.files}
+                                fallback={
+                                    <tr>
+                                        <td colspan="5">No requests yet.</td>
+                                    </tr>
+                                }
+                            >
+                                {(file) => (
+                                    <tr>
+                                        <td class="font-mono">{file.path}</td>
+                                        <td>{file.kind}</td>
+                                        <td class="text-right">
+                                            {file.requests}
+                                        </td>
+                                        <td
+                                            class="text-right"
+                                            classList={{
+                                                "text-error":
+                                                    file.not_found > 0,
+                                            }}
+                                        >
+                                            {file.not_found}
+                                        </td>
+                                        <td class="text-right">
+                                            {size(file.bytes)}
+                                        </td>
+                                    </tr>
+                                )}
+                            </For>
+                        </tbody>
+                    </table>
+                </div>
+            </Show>
+
+            <Show when={stats() && view() === "api"}>
                 <div class="stats stats-vertical lg:stats-horizontal border border-base-300 bg-base-100">
                     <div class="stat">
                         <div class="stat-title">Requests</div>
