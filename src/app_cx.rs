@@ -51,14 +51,16 @@ impl AppCx {
     }
 
     /// Sets the `APP_CX`'s `OnceLock`. And sets Waveless' runtime context.
+    /// `discover`: whether to generate the endpoints from the database's schema, which needs the
+    /// databases to be connected (see `setup.rs`).
     /// NOTE: If app's context is set this method will panic.
-    pub async fn set_global_cx(self) -> Result<()> {
+    pub async fn set_global_cx(self, discover: bool) -> Result<()> {
         RuntimeCx::from_build(
             self.config()
                 .read()
                 .await
                 .to_owned()
-                .into_build(self.build_runtime_endpoints().await?),
+                .into_build(self.build_runtime_endpoints(discover).await?),
         )
         .await?
         .set_cx();
@@ -154,8 +156,39 @@ impl AppCx {
         Ok(())
     }
 
-    /// Converts the Silence's app's endpoints (`SimpleEndpoint`) into Waveless' endpoints and discovers the database's schema to automatically generate endpoints.
-    async fn build_runtime_endpoints(&self) -> Result<waveless_commons::endpoint::Endpoints> {
+    /// Converts the Silence's app's endpoints (`SimpleEndpoint`) into Waveless' endpoints and, when
+    /// `discover` is set, discovers the database's schema to automatically generate endpoints.
+    async fn build_runtime_endpoints(
+        &self,
+        discover: bool,
+    ) -> Result<waveless_commons::endpoint::Endpoints> {
+        // Adds internal endpoints.
+        let mut endpoints = APP_INTERNAL_ENDPOINTS.to_owned(); // This can fail, as the endpoints might be invalid.
+
+        // Converts user-defined endpoints.
+        let simple_endpoints = self.simple_endpoints_by_file.read().await;
+
+        endpoints.merge(
+            waveless_commons::endpoint::Endpoints::new(
+                simple_endpoints
+                    .iter()
+                    .map(|(_, endpoints)| endpoints.to_owned())
+                    .flatten()
+                    .map(|endpoint| -> waveless_commons::endpoint::Endpoint { endpoint.into() })
+                    .collect::<CheapVec<waveless_commons::endpoint::Endpoint>>(),
+            )?, // This could fail, as the user's endpoints might be invalid.
+        )?;
+
+        if discover {
+            endpoints.merge(self.discover_endpoints().await?)?;
+        }
+
+        Ok(endpoints)
+    }
+
+    /// Discovers the MySQL schema and returns the generated endpoints, leaving out those whose id
+    /// is in `Config::skip_endpoints_ids`. Needs the databases to be connected.
+    pub async fn discover_endpoints(&self) -> Result<waveless_commons::endpoint::Endpoints> {
         // In the future, endpoint discovery will be `CompilerCx` independent.
         // In the meanwhile we do this as a workaround.
         let dummy_build = self.config.read().await.to_owned().into_build(
@@ -188,51 +221,30 @@ impl AppCx {
             .set_cx();
         }
 
-        // Adds internal endpoints.
-        let mut endpoints = APP_INTERNAL_ENDPOINTS.to_owned(); // This can fail, as the endpoints might be invalid.
-
-        // Converts user-defined endpoints.
-        let simple_endpoints = self.simple_endpoints_by_file.read().await;
-
-        endpoints.merge(
-            waveless_commons::endpoint::Endpoints::new(
-                simple_endpoints
-                    .iter()
-                    .map(|(_, endpoints)| endpoints.to_owned())
-                    .flatten()
-                    .map(|endpoint| -> waveless_commons::endpoint::Endpoint { endpoint.into() })
-                    .collect::<CheapVec<waveless_commons::endpoint::Endpoint>>(),
-            )?, // This could fail, as the user's endpoints might be invalid.
-        )?;
-
         // Discover MySQL schema endpoints.
         let config_guard = self.config.read().await;
 
         let skip_endpoint_ids = config_guard.skip_endpoints_ids();
 
-        endpoints.merge(
-            GeneratedEndpoints::generate()
-                .await?
-                .get()
-                .iter()
-                .cloned()
-                .map(|(_, (discovered_endpoints, _))| {
-                    Endpoints::new_unchecked(
-                        discovered_endpoints
-                            .inner()
-                            .iter()
-                            .cloned()
-                            .filter(|discovered_endpoint| {
-                                !skip_endpoint_ids.contains(discovered_endpoint.id())
-                            })
-                            .collect::<CheapVec<Endpoint>>(),
-                    )
-                }) // won't add endpoints whose id is in `Config::skip_endpoints_ids`.
-                .next()
-                .unwrap_or(Endpoints::default()),
-        )?;
-
-        Ok(endpoints)
+        Ok(GeneratedEndpoints::generate()
+            .await?
+            .get()
+            .iter()
+            .cloned()
+            .map(|(_, (discovered_endpoints, _))| {
+                Endpoints::new_unchecked(
+                    discovered_endpoints
+                        .inner()
+                        .iter()
+                        .cloned()
+                        .filter(|discovered_endpoint| {
+                            !skip_endpoint_ids.contains(discovered_endpoint.id())
+                        })
+                        .collect::<CheapVec<Endpoint>>(),
+                )
+            }) // won't add endpoints whose id is in `Config::skip_endpoints_ids`.
+            .next()
+            .unwrap_or(Endpoints::default()))
     }
 
     /// Returns an endpoint given it's id.

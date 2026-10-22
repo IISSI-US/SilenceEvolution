@@ -6,6 +6,7 @@ pub mod config;
 pub mod endpoint_test;
 pub mod internal_endpoints;
 pub mod new;
+pub mod setup;
 pub mod simple_endpoint;
 pub mod static_service;
 

@@ -88,3 +88,66 @@ impl AnyHttpExecutor for MySQLExecutorProxy {
             .await
     }
 }
+
+/// Proxy for the endpoints that create or modify users: the `password` param is hashed with
+/// Argon2 (as the signup does) so that the user can log in. An empty password is dropped, which
+/// keeps the current one when updating.
+#[derive(
+    Clone, PartialEq, Constructor, Serialize, Deserialize, BoxedAny, Getters, Display, Debug,
+)]
+#[display("SQL users proxy: {:?}", _0)]
+#[getset(get = "pub")]
+#[serde(transparent)]
+pub struct MySQLUserProxy(MySQLExecutorProxy);
+
+impl AnyExt for MySQLUserProxy {
+    fn name(&self) -> &str {
+        "silence_mysql_user_proxy"
+    }
+}
+
+#[typetag::serde(name = "MySQLUserProxy")]
+#[async_trait]
+impl AnyHttpExecutor for MySQLUserProxy {
+    async fn execute(&self, cx: PipelineCx, db_conns: DbConns) -> PipelineResult {
+        let MySQLUserProxy(proxy) = self;
+
+        let PipelineCx { mut request, .. } = cx;
+
+        let RequestCx { request_params, .. } = &mut request;
+
+        match request_params.get("password").cloned() {
+            Some(ParamValue::Client(Some(password))) if !password.is_empty() => {
+                let hasher = argon2::Argon2::new(
+                    argon2::Algorithm::default(),
+                    argon2::Version::default(),
+                    argon2::Params::default(),
+                );
+
+                let hashed = argon2::PasswordHasher::hash_password(&hasher, password.as_bytes())
+                    .map_err(|err| {
+                        RequestError::Other(eyre!("Cannot hash the password. {}", err))
+                    })?;
+
+                request_params.insert(
+                    "password".to_compact_string(),
+                    ParamValue::Client(Some(hashed.to_string().to_compact_string())),
+                );
+            }
+            Some(_) => {
+                request_params.remove("password");
+            }
+            None => (),
+        }
+
+        proxy
+            .execute(
+                PipelineCx {
+                    request,
+                    response: None,
+                },
+                db_conns,
+            )
+            .await
+    }
+}

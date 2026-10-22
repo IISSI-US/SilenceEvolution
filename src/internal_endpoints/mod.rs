@@ -75,7 +75,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Returns all users.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -93,7 +93,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Returns a user given its id.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -103,16 +103,16 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Post)
-                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLUserProxy::new(MySQLExecutorProxy::new(
                    SQLQueryWrapper::new("INSERT INTO |users_target_table| (name, email, password) VALUES ({name}, {email}, {password}); INSERT INTO |roles_target_table| (user_id, role) SELECT users.user_id, {role} FROM |users_target_table| as users WHERE (users.email = {email});".into()).with_include(false).into()
-                )), Default::default())) // maybe `RETURNING` does not work with preparated statements?
+                ))), Default::default())) // maybe `RETURNING` does not work with preparated statements?
                 .body_params(CheapVec::from_vec(vec!["name".into(), "email".into(), "role".into(), "password".into()]))
                 .auto_generated(true)
                 .build()
                 .unwrap()
             ))
             .description("Creates a new user without doing the signup flow (it won't generate a session token).".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -122,16 +122,16 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .route("users/{id}".into())
                 .version("internal/admin".into())
                 .method(HttpMethod::Put)
-                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLExecutorProxy::new(
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(MySQLUserProxy::new(MySQLExecutorProxy::new(
                    SQLQueryWrapper::new("UPDATE |users_target_table| SET name={name}, email={email}, password={password} WHERE (user_id = {id}); REPLACE INTO |roles_target_table| (user_id, role) VALUES ({id}, {role});".into()).with_include(false).into()
-                )), Default::default()))
+                ))), Default::default()))
                 .body_params(CheapVec::from_vec(vec!["name".into(), "email".into(), "role".into(), "password".into()]))
                 .auto_generated(true)
                 .build()
                 .unwrap()
             ))
             .description("Modifies an existing user given its id.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -149,7 +149,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Deletes an user given its id.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -167,7 +167,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Deletes the role of a given user id.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -211,7 +211,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Creates a new endpoint.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -227,7 +227,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Modifies an existing endpoint.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -242,7 +242,22 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Deletes an existing endpoint.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
+            .build()
+            .unwrap(),
+        EndpointBuilder::default()
+            .id("LoadEndpoints".into())
+            .execution_target(ExecutionTarget::Http(HttpTargetBuilder::default()
+                .route("endpoints/load".into())
+                .version("internal/admin".into())
+                .method(HttpMethod::Post)
+                .execution_pipeline(ExecutionAtom::new(None, Arc::new(EndpointsLoader), Default::default()))
+                .auto_generated(true)
+                .build()
+                .unwrap()
+            ))
+            .description("Discovers the database's schema and (re)loads the generated endpoints.".into())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -257,7 +272,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("List all tests.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -272,7 +287,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Gets a test.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -288,7 +303,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Creates a new test.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -304,7 +319,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Modifies an existing test.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -320,7 +335,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Deletes an existing test.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -335,7 +350,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Returns Silence app's settings.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -351,7 +366,7 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
                 .unwrap()
             ))
             .description("Sets Silence app's settings.".into())
-            .auth(AuthBuilder::default().level(AuthLevel::Required).allowed_roles(CheapVec::from_vec(vec!["admin".into()])).build().unwrap())
+            .auth(admin_auth())
             .build()
             .unwrap(),
         EndpointBuilder::default()
@@ -366,6 +381,23 @@ pub static APP_INTERNAL_ENDPOINTS: LazyLock<Endpoints> = LazyLock::new(|| {
             .unwrap(),
     ]))
 });
+
+/// Access to the admin API: open when the server listens on a loopback address (the panel is a
+/// local tool, see `setup.rs`), the admin role otherwise.
+fn admin_auth() -> Auth {
+    if setup::LOCAL_ADMIN.load(std::sync::atomic::Ordering::Relaxed) {
+        AuthBuilder::default()
+            .level(AuthLevel::None)
+            .build()
+            .unwrap()
+    } else {
+        AuthBuilder::default()
+            .level(AuthLevel::Required)
+            .allowed_roles(CheapVec::from_vec(vec!["admin".into()]))
+            .build()
+            .unwrap()
+    }
+}
 
 /// Checks whether a given endpoint is internal.
 pub fn is_endpoint_internal(endpoint: &Endpoint) -> bool {

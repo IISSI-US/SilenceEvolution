@@ -26,6 +26,11 @@ impl Service<Request<ConnBody>> for StaticService {
         Box::pin(async move {
             let route = request.uri().path().trim_matches('/').to_owned();
 
+            // Setup API (databases configuration), served outside Waveless (see `setup.rs`).
+            if route == "_setup" || route.starts_with("_setup/") {
+                return Ok(setup::handle(request).await);
+            }
+
             let mut response = Response::builder().header(
                 "Cache-Control",
                 format!(

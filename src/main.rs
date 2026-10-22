@@ -131,57 +131,43 @@ async fn try_main() -> Result<ResultContext> {
             display_endpoints_on_start,
             addr,
         }) => {
+            // An empty directory becomes a new project; a directory with other files is an error.
+            if setup::prepare_workspace().await? {
+                tracing::info!("Created a new Silence project in this directory.");
+            }
+
             // Loads Silence's app's context.
             let app_cx = AppCx::from_workspace().await?;
 
             match app_cx {
                 Some(_app_cx) => {
-                    // Create internal database if necessary.
-                    let internal_db_name =
-                        match _app_cx.config().read().await.databases_conn().internal() {
-                            Some(db_conns_config) => Some(db_conns_config.db().to_owned()),
-                            None => None,
-                        };
+                    // The admin panel needs no login when the server is only reachable locally.
+                    let listening_addr = _app_cx.config().read().await.listening_addr().or(addr);
 
-                    {
-                        let db_conn_config =
-                            match _app_cx.config().read().await.databases_conn().internal() {
-                                Some(_db_conn_config) => MySQLDbConnectionConfig::new(
-                                    _db_conn_config.host().to_owned(),
-                                    _db_conn_config.username().to_owned(),
-                                    _db_conn_config.password().to_owned(),
-                                    "".into(),
-                                ),
-                                None => {
-                                    let _db_conn_config = _app_cx
-                                        .config()
-                                        .read()
-                                        .await
-                                        .databases_conn()
-                                        .main()
-                                        .to_owned();
+                    setup::LOCAL_ADMIN.store(
+                        setup::is_local_admin(listening_addr),
+                        std::sync::atomic::Ordering::Relaxed,
+                    );
 
-                                    MySQLDbConnectionConfig::new(
-                                        _db_conn_config.host().to_owned(),
-                                        _db_conn_config.username().to_owned(),
-                                        _db_conn_config.password().to_owned(),
-                                        "".into(),
-                                    )
-                                }
-                            };
+                    // Connect to the databases; if it fails, start in setup mode so the admin
+                    // panel can fix the connection.
+                    let config = _app_cx.config().read().await.to_owned();
 
-                        create_internal_db(&db_conn_config, internal_db_name.to_owned()).await?;
-                    }
+                    let connected = match setup::connect_databases(&config).await {
+                        Ok(()) => true,
+                        Err(err) => {
+                            let message = format!("{:#}", err);
+                            tracing::warn!(
+                                "Cannot connect to the databases ({}). Starting in setup mode.",
+                                message
+                            );
+                            setup::SETUP.write().await.error = Some(message);
+                            false
+                        }
+                    };
 
-                    // Load the Silence's app's database into the databases manager (`waveless_commons::databases::DatabasesConnections`).
-                    DatabasesManager::load(_app_cx.config().read().await.into_database_config())
-                        .await?;
-
-                    // Run database migrations.
-                    run_migrations(internal_db_name).await?;
-
-                    // Set App's CX globally.
-                    _app_cx.set_global_cx().await?;
+                    // Set App's CX globally (the schema is discovered only when connected).
+                    _app_cx.set_global_cx(connected).await?;
 
                     if display_endpoints_on_start {
                         let runtime_build = RuntimeCx::acquire().build().read().await;

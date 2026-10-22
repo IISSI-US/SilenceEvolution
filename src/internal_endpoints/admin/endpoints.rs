@@ -228,3 +228,38 @@ impl AnyHttpExecutor for EndpointsManager {
         }
     }
 }
+
+/// Discovers the database's schema and (re)loads the generated endpoints (`Load endpoints`).
+#[derive(Clone, Serialize, Deserialize, BoxedAny, Getters, Display, Debug)]
+#[display("Endpoints loader.")]
+pub struct EndpointsLoader;
+
+impl AnyExt for EndpointsLoader {
+    fn name(&self) -> &str {
+        "silence_endpoints_loader"
+    }
+}
+
+#[typetag::serde(name = "EndpointsLoader")]
+#[async_trait]
+impl AnyHttpExecutor for EndpointsLoader {
+    async fn execute(&self, cx: PipelineCx, _db_conns: DbConns) -> PipelineResult {
+        let PipelineCx { request, response } = cx;
+
+        let mut response = response.unwrap_or_default();
+
+        let count = setup::load_generated_endpoints().await.map_err(|err| {
+            RequestError::Expected(StatusCode::BAD_REQUEST, format!("{:#}", err).into())
+        })?;
+
+        *response.body_mut() = Some(BodyValue::Json(json!({ "loaded": count })));
+
+        Ok((
+            PipelineCx {
+                request,
+                response: Some(response),
+            },
+            PipelineAction::Continue(None),
+        ))
+    }
+}
