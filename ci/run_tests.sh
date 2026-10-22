@@ -777,9 +777,13 @@ for module in admin auth api dom ui highlight ansi console views/endpoints views
     req GET "/_silence/js/$module.js"
     check "GET /_silence/js/$module.js is served as JavaScript" eval 'status_is 200 && header_matches "^content-type: *(text|application)/javascript"'
 done
-for module in solid-js/solid solid-js/web solid-js/html solid-js/store solidjs-router/index; do
+for module in solid-js/solid solid-js/web solid-js/html solid-js/store solidjs-router/index arborium/arborium "arborium/@arborium/sql@2.18.2/grammar" "arborium/@arborium/json@2.18.2/grammar"; do
     req GET "/_silence/vendor/$module.js"
     check "GET /_silence/vendor/$module.js is served as JavaScript" eval 'status_is 200 && header_matches "^content-type: *(text|application)/javascript"'
+done
+for language in sql json; do
+    req GET "/_silence/vendor/arborium/@arborium/$language@2.18.2/grammar_bg.wasm"
+    check "GET the $language tree-sitter grammar as application/wasm" eval 'status_is 200 && header_matches "^content-type: *application/wasm"'
 done
 req GET /admin2
 check "GET /admin2 maps the vendored modules with an import map" eval 'body_contains "type=\"importmap\"" && body_contains "/_silence/vendor/solid-js/solid.js"'

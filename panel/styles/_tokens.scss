@@ -45,6 +45,8 @@ $breakpoint-narrow: 860px;
     --hl-internal: #c23434;
     --hl-comment: #8a94a3;
     --hl-key: #1b4fa0;
+    --hl-function: #8a4b08;
+    --hl-type: #0f6b7a;
 }
 
 @mixin dark-theme {
@@ -80,4 +82,6 @@ $breakpoint-narrow: 860px;
     --hl-internal: #ff8c8c;
     --hl-comment: #6c7686;
     --hl-key: #9ec1ff;
+    --hl-function: #f0c674;
+    --hl-type: #7fd4e0;
 }

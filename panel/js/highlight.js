@@ -1,72 +1,116 @@
 // SilenceEvolution
 // Copyright (C) 2026 DEAL research group, Universidad de Sevilla
 
-// Minimal syntax highlighters for SQL and JSON. They return DOM fragments built from text nodes,
-// so the highlighted source is never interpreted as HTML.
+// Syntax highlighting for SQL and JSON with tree-sitter (Arborium), served from the binary
+// (`panel/vendor/arborium`, no CDN). The parser returns spans (offsets + capture names); the
+// highlighted output is built with text nodes, so the source is never interpreted as HTML.
+// Silence's placeholders (`{param}`, `|internal_param|`) are highlighted on top of SQL.
 
-const SQL_KEYWORDS = new Set(
-    `select from where and or not insert into values update set delete join left right inner outer
-    full cross on as group by order having limit offset distinct union all exists in is null like
-    between case when then else end create table drop alter add primary key foreign references
-    default auto_increment unique index view replace returning asc desc count sum avg min max
-    begin commit rollback transaction if true false with recursive interval`
-        .split(/\s+/)
-        .filter(Boolean),
-);
+import { loadGrammar } from "/_silence/vendor/arborium/arborium.js";
 
-// Order matters: the first alternative that matches at a position wins.
-const SQL_TOKENS =
-    /(--[^\n]*|\/\*[\s\S]*?\*\/)|('(?:[^'\\]|\\.)*'?|"(?:[^"\\]|\\.)*"?|`[^`]*`?)|(\{[A-Za-z_][\w]*\})|(\|[A-Za-z_][\w]*\|)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][\w]*)/g;
+const ARBORIUM = {
+    cdn: "/_silence/vendor/arborium",
+    version: "2.18.2",
+    logger: { debug() {}, info() {}, warn: console.warn, error: console.error },
+};
 
-function span(className, text) {
-    const el = document.createElement("span");
-    el.className = className;
-    el.textContent = text;
-    return el;
+const grammars = {};
+
+/**
+ * Loads the grammars. Call it once before rendering: highlighting is synchronous afterwards.
+ * If a grammar can't be loaded, that language is rendered as plain text.
+ */
+export async function loadHighlighters() {
+    await Promise.all(
+        ["sql", "json"].map(async (language) => {
+            try {
+                grammars[language] = await loadGrammar(language, ARBORIUM);
+            } catch (err) {
+                console.warn(`Cannot load the ${language} grammar.`, err);
+            }
+        }),
+    );
 }
 
-function tokenize(source, regex, classify) {
+// Capture names (e.g. `keyword.operator`) are reduced to their first segment and mapped to a class.
+const CAPTURE_CLASSES = {
+    keyword: "hl-keyword",
+    operator: "hl-keyword",
+    string: "hl-string",
+    number: "hl-number",
+    float: "hl-number",
+    boolean: "hl-number",
+    constant: "hl-number",
+    comment: "hl-comment",
+    property: "hl-key",
+    attribute: "hl-key",
+    function: "hl-function",
+    type: "hl-type",
+};
+
+const SQL_PLACEHOLDERS = [
+    [/\{\s*\w+\s*\}/g, "hl-param"],
+    [/\|\w+\|/g, "hl-internal"],
+];
+
+/** Builds a fragment from `source` and a class per UTF-16 code unit. */
+function render(source, classes) {
     const fragment = document.createDocumentFragment();
-    let last = 0;
+    let start = 0;
 
-    for (const match of source.matchAll(regex)) {
-        if (match.index > last) fragment.append(source.slice(last, match.index));
+    for (let i = 1; i <= source.length; i++) {
+        if (i === source.length || classes[i] !== classes[start]) {
+            const text = source.slice(start, i);
 
-        const className = classify(match);
-        fragment.append(className ? span(className, match[0]) : match[0]);
-        last = match.index + match[0].length;
+            if (classes[start]) {
+                const span = document.createElement("span");
+                span.className = classes[start];
+                span.textContent = text;
+                fragment.append(span);
+            } else {
+                fragment.append(text);
+            }
+
+            start = i;
+        }
     }
-
-    if (last < source.length) fragment.append(source.slice(last));
 
     return fragment;
 }
 
-/** Highlights SQL, including Silence's `{param}` and `|internal_param|` placeholders. */
-export function highlightSQL(source) {
-    return tokenize(source, SQL_TOKENS, (match) => {
-        if (match[1]) return "hl-comment";
-        if (match[2]) return "hl-string";
-        if (match[3]) return "hl-param";
-        if (match[4]) return "hl-internal";
-        if (match[5]) return "hl-number";
-        if (match[6] && SQL_KEYWORDS.has(match[6].toLowerCase())) return "hl-keyword";
-        return null;
-    });
+function highlight(language, source, overlays = []) {
+    const classes = new Array(source.length).fill(null);
+    const grammar = grammars[language];
+
+    if (grammar) {
+        let spans = [];
+
+        try {
+            spans = grammar.parse(source).spans;
+        } catch {}
+
+        // Longer spans first, so nested (shorter) spans win.
+        for (const span of [...spans].sort((a, b) => b.end - b.start - (a.end - a.start))) {
+            const className = CAPTURE_CLASSES[span.capture.split(".")[0]];
+            if (className) classes.fill(className, span.start, span.end);
+        }
+    }
+
+    for (const [regex, className] of overlays) {
+        for (const match of source.matchAll(regex)) classes.fill(className, match.index, match.index + match[0].length);
+    }
+
+    return render(source, classes);
 }
 
-const JSON_TOKENS = /("(?:[^"\\]|\\.)*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+/** Highlights SQL, including Silence's `{param}` and `|internal_param|` placeholders. */
+export function highlightSQL(source) {
+    return highlight("sql", source, SQL_PLACEHOLDERS);
+}
 
 /** Highlights JSON (any value is pretty printed first when it's not a string). */
 export function highlightJSON(value) {
-    const source = typeof value === "string" ? value : JSON.stringify(value, null, 2);
-
-    return tokenize(source, JSON_TOKENS, (match) => {
-        if (match[1]) return match[2] ? "hl-key" : "hl-string";
-        if (match[3]) return "hl-keyword";
-        if (match[4]) return "hl-number";
-        return null;
-    });
+    return highlight("json", typeof value === "string" ? value : JSON.stringify(value, null, 2));
 }
 
 /** Wraps a highlighted fragment in a `<pre class="code-block">`. */
@@ -92,14 +136,14 @@ export function sqlEditor(value = "", { readonly = false, rows = 6, onInput } = 
     textarea.setAttribute("autocapitalize", "off");
     textarea.setAttribute("autocomplete", "off");
 
-    const render = () => {
+    const update = () => {
         // A trailing newline keeps the <pre> height in sync with the textarea.
         pre.replaceChildren(highlightSQL(textarea.value + "\n"));
         pre.scrollTop = textarea.scrollTop;
     };
 
     textarea.addEventListener("input", () => {
-        render();
+        update();
         onInput?.(textarea.value);
     });
     textarea.addEventListener("scroll", () => (pre.scrollTop = textarea.scrollTop));
@@ -107,7 +151,7 @@ export function sqlEditor(value = "", { readonly = false, rows = 6, onInput } = 
         if (event.key === "Tab" && !readonly) {
             event.preventDefault();
             textarea.setRangeText("    ", textarea.selectionStart, textarea.selectionEnd, "end");
-            render();
+            update();
         }
     });
 
@@ -115,7 +159,7 @@ export function sqlEditor(value = "", { readonly = false, rows = 6, onInput } = 
     el.className = "code-editor";
     el.append(pre, textarea);
 
-    render();
+    update();
 
     return {
         el,
@@ -123,7 +167,7 @@ export function sqlEditor(value = "", { readonly = false, rows = 6, onInput } = 
         get: () => textarea.value,
         set: (text) => {
             textarea.value = text;
-            render();
+            update();
         },
     };
 }

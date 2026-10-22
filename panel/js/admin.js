@@ -9,6 +9,7 @@ import html from "solid-js/html";
 import { A, HashRouter, Navigate, Route } from "@solidjs/router";
 
 import { api, clearSessionToken } from "./api.js";
+import { loadHighlighters } from "./highlight.js";
 import { Console } from "./console.js";
 import { Icon, Loading } from "./ui.js";
 
@@ -136,5 +137,8 @@ function App() {
         <//>
     `;
 }
+
+// Grammars are local: loading them first keeps highlighting synchronous in every view.
+await loadHighlighters();
 
 render(() => html`<${App} />`, document.getElementById("root"));

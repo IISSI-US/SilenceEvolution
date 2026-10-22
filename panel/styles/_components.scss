@@ -424,6 +424,14 @@ table.table {
     color: var(--hl-key);
 }
 
+.hl-function {
+    color: var(--hl-function);
+}
+
+.hl-type {
+    color: var(--hl-type);
+}
+
 // Code editor: a transparent textarea over a highlighted <pre>, both with identical metrics.
 .code-editor {
     position: relative;
