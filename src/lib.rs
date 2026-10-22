@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
 pub mod app_cx;
+pub mod composite_tests;
 pub mod config;
 pub mod endpoint_test;
 pub mod internal_endpoints;

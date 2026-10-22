@@ -154,7 +154,10 @@ export default (_: RouteSectionProps) => {
 
             set_id(test_by_file.test.target_endpoint_id);
 
-            if (get_raw_schema()) {
+            // The raw schema overrides the saved test only while it's being edited: otherwise it
+            // mirrors the form (see the effect below), which would wipe the saved params before
+            // they're shown and feed this memo back in a loop.
+            if (get_raw_schema_mode() && get_raw_schema()) {
                 try {
                     return {
                         test: {
@@ -199,7 +202,8 @@ export default (_: RouteSectionProps) => {
         if (endpoint_by_file() !== undefined) {
             const test_query_params = test_by_file()
                 ? pipe(
-                      test_by_file()!.test["query_params"] as Record<
+                      // Tests written by hand may have no params.
+                      (test_by_file()!.test["query_params"] ?? {}) as Record<
                           string,
                           string
                       >,
@@ -481,7 +485,7 @@ export default (_: RouteSectionProps) => {
     createEffect(async () => {
         if (response() !== undefined) {
             response_body_element!.innerHTML = await json_grammar()?.highlight(
-                response()!.body,
+                response()!.body ?? "",
             )!;
         }
     });
@@ -773,7 +777,7 @@ export default (_: RouteSectionProps) => {
                                                                             ? (test_by_file()
                                                                                   ?.test[
                                                                                   "query_params"
-                                                                              ]![
+                                                                              ]?.[
                                                                                   param()
                                                                               ] ??
                                                                               "")

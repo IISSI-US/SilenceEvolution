@@ -45,6 +45,7 @@ render(
                 <Route path="/tests" component={ListTests}>
                     <Route path="/*" />
                     <Route path="/:name" component={TestEndpoint} />
+                    <Route path="/:name/run" component={TestEndpoint} />
                     <Route path="/new" component={TestEndpoint} />
                 </Route>
                 <Route path="/users" component={ListUsers}>

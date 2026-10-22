@@ -806,6 +806,26 @@ req GET /_setup/stats
 check "after the reset only the reset request itself is left" jq_ok '.api.requests == 0 and .silence.requests <= 1 and .api.executions == 0 and .web.requests == 0'
 
 # ---------------------------------------------------------------------------
+# Composite tests (see src/composite_tests.rs)
+# ---------------------------------------------------------------------------
+
+section "Composite tests (/_setup/composite_tests)"
+
+req GET /_setup/composite_tests
+check "without composite_tests.json there are no composite tests" eval 'status_is 200 && jq_ok ". == []"'
+req PUT /_setup/composite_tests '[{"name":"Flow","description":"Two steps","steps":["List departments","Get department 1"]}]'
+check "PUT /_setup/composite_tests saves them" status_is 200
+check "they're saved in the project's composite_tests.json, steps in order" jq -e '.[0].name == "Flow" and .[0].steps == ["List departments","Get department 1"]' "$WORK_DIR/project/composite_tests.json"
+req GET /_setup/composite_tests
+check "GET /_setup/composite_tests returns them" jq_ok 'length == 1 and .[0].description == "Two steps"'
+req PUT /_setup/composite_tests '[{"name":"Empty","steps":[]}]'
+check "a composite test without unit tests is rejected" status_is 400
+req PUT /_setup/composite_tests '[{"name":"A","steps":["x"]},{"name":"A","steps":["y"]}]'
+check "two composite tests with the same name are rejected" status_is 400
+check "a rejected PUT doesn't change the saved ones" jq -e 'length == 1 and .[0].name == "Flow"' "$WORK_DIR/project/composite_tests.json"
+check "composite tests aren't loaded as unit tests (tests/ isn't touched)" test ! -e "$WORK_DIR/project/tests/composite_tests.json"
+
+# ---------------------------------------------------------------------------
 # Setup mode: `silence run` in an empty directory (see src/setup.rs)
 # ---------------------------------------------------------------------------
 

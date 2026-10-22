@@ -220,6 +220,8 @@ pub async fn list_databases(credentials: &ServerCredentials) -> Result<Vec<Serve
 /// - `POST connect`: connects to the configured databases.
 /// - `GET console`: the server's log as Server-Sent Events (one `data:` line per log line).
 /// - `GET stats` / `DELETE stats`: usage statistics (see `stats.rs`) / reset them.
+/// - `GET composite_tests` / `PUT composite_tests` (the whole list): composite tests (see
+///   `composite_tests.rs`).
 pub async fn handle(request: Request<BoxBody<ConnBytes, eyre::Error>>) -> Response<ConnBody> {
     let method = request.method().to_owned();
     let path = request.uri().path().trim_matches('/').to_owned();
@@ -304,6 +306,26 @@ pub async fn handle(request: Request<BoxBody<ConnBytes, eyre::Error>>) -> Respon
             Ok(()) => reply(200, json!({})),
             Err(err) => error(500, format!("Cannot reset the statistics. {}", err)),
         },
+        (hyper::Method::GET, "_setup/composite_tests") => match composite_tests::load().await {
+            Ok(tests) => reply(200, serde_json::to_value(tests).unwrap_or_default()),
+            Err(err) => error(500, format!("{:#}", err)),
+        },
+        (hyper::Method::PUT, "_setup/composite_tests") => {
+            let body = match request.into_body().collect().await {
+                Ok(body) => body.to_bytes(),
+                Err(err) => return error(400, format!("Cannot read the request's body. {}", err)),
+            };
+
+            let tests = match serde_json::from_slice::<Vec<composite_tests::CompositeTest>>(&body) {
+                Ok(tests) => tests,
+                Err(err) => return error(400, format!("Invalid composite tests. {}", err)),
+            };
+
+            match composite_tests::save(&tests).await {
+                Ok(()) => reply(200, json!({})),
+                Err(err) => error(400, format!("{:#}", err)),
+            }
+        }
         (hyper::Method::GET, "_setup/console") => {
             let Some(receiver) = console::subscribe() else {
                 return error(503, "The console isn't available.".into());
