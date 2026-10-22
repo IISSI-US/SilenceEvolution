@@ -168,9 +168,9 @@ HEADERS=""  # response headers of the last request
 
 # req METHOD PATH [JSON_BODY] [extra curl args...]
 # PATH is relative to the server root (e.g. /api/v1/departments).
-# Waveless caches responses in memory for a couple of seconds, keyed by URL; a unique
-# `_` query parameter is appended to every request so that assertions always observe
-# the current state of the database.
+# Responses may be cached for a couple of seconds; a unique `_` query parameter is
+# appended to every request so that assertions always observe the current state of
+# the database.
 req() {
     local method="$1" path="$2" data="${3:-}"
     shift 3 || shift $#

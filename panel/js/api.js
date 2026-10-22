@@ -2,8 +2,7 @@
 // Copyright (C) 2026 DEAL research group, Universidad de Sevilla
 
 // API client for the admin panel. Quirks of the server that are handled here:
-// - Responses are cached server side regardless of the session, so every request sends
-//   `Cache-Control: no-cache`.
+// - Every request sends `Cache-Control: no-cache`, so the panel always shows fresh data.
 // - The session cookie is only recognized when it's the first cookie of the request, so the token
 //   is also sent in the `Authorization` header (raw token, no `Bearer`).
 // - Successful mutations answer with an empty body.
