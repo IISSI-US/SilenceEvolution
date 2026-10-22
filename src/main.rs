@@ -141,8 +141,9 @@ async fn try_main() -> Result<ResultContext> {
 
             match app_cx {
                 Some(_app_cx) => {
-                    // The admin panel needs no login when the server is only reachable locally.
-                    let listening_addr = _app_cx.config().read().await.listening_addr().or(addr);
+                    // An explicit `--listen` wins over `config.json`. The admin panel needs no login
+                    // when the server is only reachable locally.
+                    let listening_addr = addr.or(*_app_cx.config().read().await.listening_addr());
 
                     setup::LOCAL_ADMIN.store(
                         setup::is_local_admin(listening_addr),
@@ -332,13 +333,6 @@ async fn try_main() -> Result<ResultContext> {
                         }.print();
                     }
 
-                    let runtime_executor = RuntimeCx::acquire()
-                        .build()
-                        .read()
-                        .await
-                        .executor()
-                        .to_owned();
-
                     let format_link = |mut link: String| -> String {
                         if !link.starts_with("http") {
                             link.insert_str(0, "http://");
@@ -355,18 +349,15 @@ async fn try_main() -> Result<ResultContext> {
                         ) {
                             MixedText(align: TextAlign::Left, contents: vec![
                                 MixedTextContent::new("⚡️ "),
-                                MixedTextContent::new(format!("Silence server running at {}", format_link(runtime_executor.listening_addr().unwrap().to_string()))).color(iocraft::Color::White).weight(Weight::Bold),
-                                MixedTextContent::new(format!("\nYou can access the admin panel from {}", format_link([runtime_executor.listening_addr().unwrap().to_string(), "/admin".to_string()].join("")))).color(iocraft::Color::Green),
+                                MixedTextContent::new(format!("Silence server running at {}", format_link(listening_addr.unwrap().to_string()))).color(iocraft::Color::White).weight(Weight::Bold),
+                                MixedTextContent::new(format!("\nYou can access the admin panel from {}", format_link([listening_addr.unwrap().to_string(), "/admin".to_string()].join("")))).color(iocraft::Color::Green),
                             ])
                         }
                     }
                     .print();
 
                     serve(
-                        match runtime_executor.listening_addr() {
-                            Some(addr) => Some(addr.to_owned()),
-                            None => addr,
-                        },
+                        listening_addr,
                         None,
                         Some(BoxCloneService::new(StaticService)),
                     )
