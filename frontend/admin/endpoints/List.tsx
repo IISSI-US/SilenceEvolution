@@ -4,7 +4,7 @@
 import AppCx from "@admin/AppCx";
 import { type Endpoint, type EndpointByFile } from "@admin/endpoints";
 
-import Modal from "@admin/components/Modal";
+import SubPage from "@admin/components/SubPage";
 import AlertBox, { type AlertStruct } from "@admin/components/AlertContainer";
 import SearchButton from "@admin/components/SearchButton";
 import { SortableColumnCell } from "@admin/components/List";
@@ -123,9 +123,17 @@ export default (props: RouteSectionProps) => {
         }),
     );
 
+    // A sub-route (edit, test...) is shown as a full page that replaces the list.
+    const sub_page = children(() => props.children);
+
     return (
         <>
-            <div>
+            <Show when={sub_page() !== undefined}>
+                <SubPage parent_path="/endpoints" parent_title="Endpoints">
+                    {sub_page()}
+                </SubPage>
+            </Show>
+            <div classList={{ hidden: sub_page() !== undefined }}>
                 <div class="flex flex-col gap-3 pb-3 items-center w-full">
                     <div class="flex not-lg:flex-col not-lg:gap-3 items-center w-full">
                         <h1 class="text-4xl font-bold">Endpoints</h1>
@@ -188,8 +196,6 @@ export default (props: RouteSectionProps) => {
                         </div>
                     }
                 >
-                    <Modal parent_path="/endpoints">{props.children}</Modal>
-
                     <div
                         class="overflow-x-auto transition-all transition-discrete duration-500 starting:opacity-0 starting:scale-95"
                         ref={table_container}
@@ -571,7 +577,10 @@ export default (props: RouteSectionProps) => {
                                                             );
                                                         }}
                                                     >
-                                                        <Icon name="braces" class="scale-90" />
+                                                        <Icon
+                                                            name="braces"
+                                                            class="scale-90"
+                                                        />
                                                         <span class="font-bold">
                                                             Modify
                                                         </span>
@@ -590,7 +599,10 @@ export default (props: RouteSectionProps) => {
                                                             );
                                                         }}
                                                     >
-                                                        <Icon name="tests" class="scale-90" />
+                                                        <Icon
+                                                            name="tests"
+                                                            class="scale-90"
+                                                        />
                                                         <span class="font-bold">
                                                             Test
                                                         </span>

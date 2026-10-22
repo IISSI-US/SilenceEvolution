@@ -5,7 +5,7 @@ import AppCx from "@admin/AppCx";
 import { type TestByFile } from "@admin/tests";
 
 import AlertBox, { type AlertStruct } from "@admin/components/AlertContainer";
-import Modal from "@admin/components/Modal";
+import SubPage from "@admin/components/SubPage";
 import SearchButton from "@admin/components/SearchButton";
 import { SortableColumnCell } from "@admin/components/List";
 
@@ -103,9 +103,17 @@ export default (props: RouteSectionProps) => {
         }),
     );
 
+    // A sub-route (edit, test...) is shown as a full page that replaces the list.
+    const sub_page = children(() => props.children);
+
     return (
         <>
-            <div>
+            <Show when={sub_page() !== undefined}>
+                <SubPage parent_path="/tests" parent_title="Tests">
+                    {sub_page()}
+                </SubPage>
+            </Show>
+            <div classList={{ hidden: sub_page() !== undefined }}>
                 <div class="flex flex-col gap-3 pb-3 items-center w-full">
                     <div class="flex not-lg:flex-col not-lg:gap-3 items-center w-full">
                         <h1 class="text-4xl font-bold">Tests</h1>
@@ -145,8 +153,6 @@ export default (props: RouteSectionProps) => {
                         </div>
                     }
                 >
-                    <Modal parent_path="/tests">{props.children}</Modal>
-
                     <div
                         class="overflow-x-auto transition-all transition-discrete duration-500 starting:opacity-0 starting:scale-95"
                         ref={table_container}
