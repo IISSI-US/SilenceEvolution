@@ -49,6 +49,8 @@ bash ci/run_tests.sh [target/debug/silence]   # env: DB_HOST DB_PORT DB_USER DB_
 - `src/static_service.rs`: serves embedded `/admin`, `/auth`, `/internal_assets` and the project's `static/` (fallback `web/`).
 - `src/config.rs`: `config.json` schema and its translation into a Waveless build (auth tables, token TTL, roles).
 - `frontend/`: SolidJS + Tailwind/daisyUI, built with Vite (`admin/` panel, `auth/` login/signup).
+  - Themes `silence` / `silence-dark` (daisyUI, `styles/tailwind.css`) use the same tokens as the new panel. Icons: `admin/components/Icon.tsx` + sprite `public/internal_assets/icons.svg` (no icon fonts from CDNs). Served at `/admin` and `/admin2`.
+  - In debug, `cargo build` doesn't rebuild the frontend if `target/frontend` exists: run `bun run build` (or `bun run watch`); the binary reads `target/frontend` from disk. `bunx tsc --noEmit -p .` has 2 pre-existing errors in `Config.tsx`.
 
 Project layout created by `silence new`: `config.json`, `endpoints/*.json`, `tests/*.json`, `web/`.
 
