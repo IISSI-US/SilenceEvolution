@@ -23,7 +23,7 @@ export const current_component = (full_path: string) => {
     return pipe(
         full_path,
         split("/"),
-        filter((str) => str.length !== 0 && str !== "admin"),
+        filter((str) => str.length !== 0 && str !== "admin" && str !== "admin2"),
         first(),
     );
 };
