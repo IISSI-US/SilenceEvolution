@@ -123,7 +123,7 @@ async fn try_main() -> Result<ResultContext> {
     subscribe_logging(
         cli.debug,
         // CheapVec::from_iter([ConsoleTracingLayer.boxed()]),
-        CheapVec::from_iter([console.boxed()]),
+        CheapVec::from_iter([console.boxed(), silence::stats::StatsLayer.boxed()]),
     )?;
 
     match cli.subcommand {
@@ -169,6 +169,9 @@ async fn try_main() -> Result<ResultContext> {
 
                     // Set App's CX globally (the schema is discovered only when connected).
                     _app_cx.set_global_cx(connected).await?;
+
+                    // Usage statistics, saved in the project's `stats.json`.
+                    silence::stats::start().await?;
 
                     if display_endpoints_on_start {
                         let runtime_build = RuntimeCx::acquire().build().read().await;

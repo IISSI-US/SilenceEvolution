@@ -1,6 +1,7 @@
 // SilenceEvolution
 // Copyright (C) 2026 Oscar Alvarez Gonzalez
 
+import Stats from "@admin/Stats";
 import { AppCxProvider } from "@admin/AppCx";
 
 import Admin from "@admin/Admin";
@@ -52,6 +53,7 @@ render(
                     <Route path="/new" component={ModifyUser} />
                 </Route>
                 <Route path="/config" component={Config} />
+                <Route path="/stats" component={Stats} />
             </Router>
         </AppCxProvider>
     ),

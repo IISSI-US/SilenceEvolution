@@ -214,6 +214,7 @@ pub async fn list_databases(credentials: &ServerCredentials) -> Result<Vec<Serve
 /// - `POST databases` (`{host, username, password}`): the databases of that server.
 /// - `POST connect`: connects to the configured databases.
 /// - `GET console`: the server's log as Server-Sent Events (one `data:` line per log line).
+/// - `GET stats` / `DELETE stats`: usage statistics (see `stats.rs`) / reset them.
 pub async fn handle(request: Request<BoxBody<ConnBytes, eyre::Error>>) -> Response<ConnBody> {
     let method = request.method().to_owned();
     let path = request.uri().path().trim_matches('/').to_owned();
@@ -293,6 +294,11 @@ pub async fn handle(request: Request<BoxBody<ConnBytes, eyre::Error>>) -> Respon
                 Err(err) => error(400, format!("Cannot connect to the server. {:#}", err)),
             }
         }
+        (hyper::Method::GET, "_setup/stats") => reply(200, stats::report().await),
+        (hyper::Method::DELETE, "_setup/stats") => match stats::reset().await {
+            Ok(()) => reply(200, json!({})),
+            Err(err) => error(500, format!("Cannot reset the statistics. {}", err)),
+        },
         (hyper::Method::GET, "_setup/console") => {
             let Some(receiver) = console::subscribe() else {
                 return error(503, "The console isn't available.".into());

@@ -240,6 +240,7 @@ impl AppCx {
                         .filter(|discovered_endpoint| {
                             !skip_endpoint_ids.contains(discovered_endpoint.id())
                         })
+                        .map(|discovered_endpoint| with_proxy(&discovered_endpoint))
                         .collect::<CheapVec<Endpoint>>(),
                 )
             }) // won't add endpoints whose id is in `Config::skip_endpoints_ids`.
@@ -870,4 +871,64 @@ impl AppCx {
             Ok(des_buff)
         })
     }
+}
+
+/// Runs a generated endpoint's `MySQLExecutor` through `MySQLExecutorProxy`, which also records
+/// the usage statistics (see `stats.rs`). Other endpoints are returned unchanged.
+fn with_proxy(endpoint: &Endpoint) -> Endpoint {
+    use crate::internal_endpoints::mysql_proxy::MySQLExecutorProxy;
+    use waveless_commons::http_executor::ExecutionAtom;
+    use waveless_sql::http_executor::mysql::MySQLExecutor;
+
+    let ExecutionTarget::Http(http_target) = endpoint.execution_target() else {
+        return endpoint.to_owned();
+    };
+
+    let Some(atom) = http_target.execution_pipeline() else {
+        return endpoint.to_owned();
+    };
+
+    let Ok(executor) = atom
+        .executor()
+        .to_owned()
+        .into_arc_any()
+        .downcast::<MySQLExecutor>()
+    else {
+        return endpoint.to_owned();
+    };
+
+    let mut http_builder = HttpTargetBuilder::default();
+
+    http_builder
+        .route(http_target.route().to_owned())
+        .method(http_target.method().to_owned())
+        .query_params(http_target.query_params().to_owned())
+        .body_params(http_target.body_params().to_owned())
+        .capture_all_params(*http_target.capture_all_params())
+        .auto_generated(*http_target.auto_generated())
+        .execution_pipeline(ExecutionAtom::new(
+            atom.id().to_owned(),
+            Arc::new(MySQLExecutorProxy::new((*executor).to_owned())),
+            atom.children().to_owned(),
+        ));
+
+    if let Some(version) = http_target.version() {
+        http_builder.version(version.to_owned());
+    }
+
+    let mut endpoint_builder = EndpointBuilder::default();
+
+    endpoint_builder
+        .id(endpoint.id().to_owned())
+        .databases(endpoint.databases().to_owned())
+        .tags(endpoint.tags().to_owned())
+        .auth(endpoint.auth().to_owned())
+        .deprecated(*endpoint.deprecated())
+        .execution_target(ExecutionTarget::Http(http_builder.build().unwrap()));
+
+    if let Some(description) = endpoint.description() {
+        endpoint_builder.description(description.to_owned());
+    }
+
+    endpoint_builder.build().unwrap()
 }

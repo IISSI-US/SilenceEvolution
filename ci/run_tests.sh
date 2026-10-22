@@ -779,6 +779,23 @@ check "path traversal does not serve the project's config.json" eval '! body_con
 check "server is still running after the path traversal attempt" server_alive
 
 # ---------------------------------------------------------------------------
+# Usage statistics (see src/stats.rs)
+# ---------------------------------------------------------------------------
+
+section "Usage statistics (/_setup/stats)"
+
+req GET /_setup/stats
+check "the statistics count the requests made by the tests" jq_ok '.requests > 50 and .by_method.GET > 0 and .by_method.POST > 0'
+check "generated endpoints' executions are measured" jq_ok 'any(.endpoints[]; .id == "departments_GetMany" and .executions > 0)'
+check "failed executions are counted by status" jq_ok '.errors > 0 and (.by_status | keys | any(. == "500" or . == "400"))'
+check "requests rejected before running (auth) are counted" jq_ok 'any(.endpoints[]; .rejected > 0)'
+req DELETE /_setup/stats
+check "DELETE /_setup/stats resets them" status_is 200
+check "the reset is saved in the project's stats.json" jq -e '.requests == {} and .executions == {}' "$WORK_DIR/project/stats.json"
+req GET /_setup/stats
+check "after the reset only the reset request itself is left" jq_ok '.requests <= 1 and .executions == 0'
+
+# ---------------------------------------------------------------------------
 # Setup mode: `silence run` in an empty directory (see src/setup.rs)
 # ---------------------------------------------------------------------------
 

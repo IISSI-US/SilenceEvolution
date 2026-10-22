@@ -9,6 +9,7 @@ pub mod new;
 pub mod setup;
 pub mod simple_endpoint;
 pub mod static_service;
+pub mod stats;
 
 pub use app_cx::*;
 pub use endpoint_test::*;

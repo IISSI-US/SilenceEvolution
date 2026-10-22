@@ -309,6 +309,21 @@ export default (props: RouteSectionProps) => {
                                     <Icon name="users" class="scale-95" />
                                 </A>
                             </li>
+                            <li
+                                classList={{
+                                    "pointer-events-none opacity-40":
+                                        session()?.connected === false,
+                                }}
+                            >
+                                <A
+                                    href="/stats"
+                                    class="tooltip tooltip-right"
+                                    data-tip="Stats"
+                                    aria-label="Stats"
+                                >
+                                    <Icon name="chart" class="scale-95" />
+                                </A>
+                            </li>
                         </ul>
                     </div>
                 </div>

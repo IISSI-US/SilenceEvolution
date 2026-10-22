@@ -44,6 +44,9 @@ impl AnyHttpExecutor for MySQLExecutorProxy {
 
         let PipelineCx { mut request, .. } = cx;
 
+        let endpoint_id = request.endpoint.id().to_string();
+        let started = std::time::Instant::now();
+
         let RequestCx { request_params, .. } = &mut request;
 
         // Inject runtime parameters.
@@ -77,7 +80,7 @@ impl AnyHttpExecutor for MySQLExecutorProxy {
             ),
         );
 
-        mysql_execute
+        let result = mysql_execute
             .execute(
                 PipelineCx {
                     request,
@@ -85,7 +88,22 @@ impl AnyHttpExecutor for MySQLExecutorProxy {
                 },
                 db_conns,
             )
-            .await
+            .await;
+
+        // Usage statistics (see `stats.rs`).
+        let status = match &result {
+            Ok((cx, _)) => cx
+                .response
+                .as_ref()
+                .map(|response| response.status().as_u16())
+                .unwrap_or(200),
+            Err(RequestError::Expected(status, _)) => status.as_u16(),
+            Err(RequestError::Other(_)) => 500,
+        };
+
+        stats::record_execution(&endpoint_id, status, started.elapsed().as_millis() as u64);
+
+        result
     }
 }
 
