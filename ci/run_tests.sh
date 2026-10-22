@@ -77,6 +77,7 @@ sql() {
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/silence_ci.XXXXXX")"
 SERVER_LOG="$WORK_DIR/server.log"
 SERVER_PID=""
+SETUP_PID=""
 
 (
     umask 077
@@ -91,10 +92,13 @@ drop_test_databases() {
 
 cleanup() {
     local code=$?
-    if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
-        kill "$SERVER_PID" 2>/dev/null || true
-        wait "$SERVER_PID" 2>/dev/null || true
-    fi
+    local pid
+    for pid in "$SERVER_PID" "$SETUP_PID"; do
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+        fi
+    done
     if [ "$code" -ne 0 ] && [ -f "$SERVER_LOG" ]; then
         echo
         echo "${C_DIM}---- last lines of the server log ($SERVER_LOG) ----${C_RESET}"
@@ -131,6 +135,14 @@ jq --arg listen "127.0.0.1:${SILENCE_PORT}" \
     | .databases_conn.main.host = $host | .databases_conn.main.username = $user | .databases_conn.main.password = $pass
     | .databases_conn.internal.host = $host | .databases_conn.internal.username = $user | .databases_conn.internal.password = $pass' \
    "$CI_DIR/project/config.json" > "$WORK_DIR/project/config.json"
+
+# Another server on the port would answer the readiness check (and the tests) instead of ours.
+for port in "$SILENCE_PORT" "$((SILENCE_PORT + 1))"; do
+    if curl -s -o /dev/null --max-time 2 "http://127.0.0.1:${port}/"; then
+        echo "${C_RED}Port ${port} is already in use: stop that server or set SILENCE_PORT.${C_RESET}" >&2
+        exit 1
+    fi
+done
 
 echo "Starting server..."
 (cd "$WORK_DIR/project" && exec "$SILENCE_BIN" run > "$SERVER_LOG" 2>&1) &
@@ -322,8 +334,6 @@ xfail "signup sets the Authorization cookie (like login does)" \
 # right after the first signup).
 auth_req "$ADMIN_TOKEN" GET /api/internal/whoami
 check "before bootstrap the first user has no role" jq_ok '.email == "admin@company.com" and .role == null'
-auth_req "$ADMIN_TOKEN" GET /api/internal/admin/users
-check "before bootstrap admin endpoints are forbidden (401/403)" status_in 401 403
 req GET /api/internal/bootstrap
 check "bootstrap without token returns 401" status_is 401
 auth_req "$ADMIN_TOKEN" GET /api/internal/bootstrap
@@ -423,29 +433,28 @@ check "admin can read the config (GET /api/internal/admin/config)" status_is 200
 auth_req "$ADMIN_TOKEN" GET /api/internal/admin/tests
 check "admin can list tests (GET /api/internal/admin/tests)" status_is 200
 
+# The server listens on loopback (127.0.0.1): the admin panel is a local tool, so its API
+# needs no login (see src/setup.rs). Only read-only calls here: they must not change the data.
 auth_req "$PRUEBAS_TOKEN" GET /api/internal/admin/users
-check "non-admin: GET /api/internal/admin/users is forbidden (401/403)" status_in 401 403
-auth_req "$PRUEBAS_TOKEN" GET /api/internal/admin/users/1
-check "non-admin: GET /api/internal/admin/users/1 is forbidden" status_in 401 403
-auth_req "$PRUEBAS_TOKEN" GET /api/internal/admin/config
-check "non-admin: GET /api/internal/admin/config is forbidden" status_in 401 403
-auth_req "$PRUEBAS_TOKEN" DELETE /api/internal/admin/users/1
-check "non-admin: DELETE /api/internal/admin/users/1 is forbidden" status_in 401 403
-auth_req "$PRUEBAS_TOKEN" POST /api/internal/admin/endpoints '{"id": "evil", "route": "evil", "method": "get", "execute": {"queries": [{"query": "SELECT 1"}]}}'
-check "non-admin: POST /api/internal/admin/endpoints is forbidden" status_in 401 403
+check "local admin: a non-admin user can use the admin API (GET users)" status_is 200
 req GET /api/internal/admin/users
-check "anonymous: GET /api/internal/admin/users returns 401" status_is 401
-auth_req "$ADMIN_TOKEN" GET /api/internal/admin/users/1
-check "user 1 still exists after the forbidden DELETE" jq_ok '.email == "admin@company.com"'
+check "local admin: anonymous GET /api/internal/admin/users returns 200" status_is 200
+req GET /api/internal/admin/config
+check "local admin: anonymous GET /api/internal/admin/config returns 200" status_is 200
 
 auth_req "$ADMIN_TOKEN" POST /api/internal/admin/users "$(json '{name: "carol", email: "carol@company.com", password: "carol", role: "user"}')"
 check "admin creates a user via POST /api/internal/admin/users" status_is 200
 auth_req "$ADMIN_TOKEN" GET /api/internal/admin/users
 check "the created user is listed with its role" jq_ok 'any(.email == "carol@company.com" and .role == "user")'
 req POST /api/internal/login "$(json '{email: "carol@company.com", password: "carol"}')"
-xfail "a user created from the admin panel can log in" \
-    "NewUser/SetUser store the password in plain text (src/internal_endpoints/mod.rs:107 and :126) but login verifies an argon2 hash -> 500 'password hash string missing field'" \
-    status_is 200
+check "a user created from the admin panel can log in" status_is 200
+auth_req "$ADMIN_TOKEN" GET /api/internal/admin/users
+check "users created from the admin panel get an argon2 hash" jq_ok 'all(.password | startswith("$argon2"))'
+CAROL_ID="$(jq -r '.[] | select(.email == "carol@company.com") | .user_id' <<<"$BODY")"
+auth_req "$ADMIN_TOKEN" PUT "/api/internal/admin/users/$CAROL_ID" "$(json '{name: "carol", email: "carol@company.com", password: "", role: "user"}')"
+check "updating a user with an empty password succeeds" status_is 200
+req POST /api/internal/login "$(json '{email: "carol@company.com", password: "carol"}')"
+check "an empty password on update keeps the current one" status_is 200
 
 # ---------------------------------------------------------------------------
 # Roles  (old: test_roles.py; restricted_endpoints.json)
@@ -761,6 +770,64 @@ check "GET /auth returns 200 text/html" eval 'status_is 200 && header_matches "^
 req GET /../config.json "" --path-as-is
 check "path traversal does not serve the project's config.json" eval '! body_contains databases_conn'
 check "server is still running after the path traversal attempt" server_alive
+
+# ---------------------------------------------------------------------------
+# Setup mode: `silence run` in an empty directory (see src/setup.rs)
+# ---------------------------------------------------------------------------
+
+section "Setup mode (silence run in an empty directory)"
+
+mkdir -p "$WORK_DIR/not-a-project" && touch "$WORK_DIR/not-a-project/notes.txt"
+NOT_PROJECT_OUT="$(cd "$WORK_DIR/not-a-project" && timeout 20 "$SILENCE_BIN" run 2>&1 || true)"
+check "run in a non-empty directory that isn't a project fails" grep -q "isn't empty" <<<"$NOT_PROJECT_OUT"
+check "run in a non-empty directory doesn't create a project" test ! -e "$WORK_DIR/not-a-project/config.json"
+
+SETUP_DIR="$WORK_DIR/empty"
+SETUP_PORT=$((SILENCE_PORT + 1))
+mkdir -p "$SETUP_DIR" && touch "$SETUP_DIR/.gitkeep"
+(cd "$SETUP_DIR" && exec "$SILENCE_BIN" run -l "127.0.0.1:${SETUP_PORT}" > "$WORK_DIR/setup.log" 2>&1) &
+SETUP_PID=$!
+for _ in $(seq 1 120); do
+    curl -fs -o /dev/null "http://127.0.0.1:${SETUP_PORT}/_setup/status" && break
+    kill -0 "$SETUP_PID" 2>/dev/null || break
+    sleep 0.5
+done
+
+MAIN_BASE="$BASE"
+BASE="http://127.0.0.1:${SETUP_PORT}"
+
+check "run in an empty directory (hidden files ignored) creates config.json" test -f "$SETUP_DIR/config.json"
+check "run in an empty directory creates endpoints/, tests/ and web/" test -d "$SETUP_DIR/endpoints" -a -d "$SETUP_DIR/tests" -a -d "$SETUP_DIR/web"
+req GET /_setup/status
+check "the new project starts in setup mode (not connected, local admin)" jq_ok '.connected == false and .local_admin == true and (.error | length > 0)'
+req GET /admin
+check "the admin panel is served in setup mode" status_is 200
+req GET /_setup/config
+check "GET /_setup/config returns the default settings" jq_ok '.databases_conn.main.db == "example_db"'
+req PUT /_setup/config "$(json --arg host "$DB_HOST:$DB_PORT" --arg user "$DB_USER" --arg pass "$DB_PASSWORD" \
+    '{databases_conn: {main: {host: $host, username: $user, password: $pass, db: "silence_ci_db"},
+                       internal: {host: $host, username: $user, password: $pass, db: "silence_ci_internal_db"}}}')"
+check "PUT /_setup/config saves the connections" status_is 200
+check "the connections are written to config.json" jq -e '.databases_conn.main.db == "silence_ci_db"' "$SETUP_DIR/config.json"
+req GET /api/v1/departments
+check "before connecting, the database's endpoints are not served" status_is_error
+req POST /_setup/connect
+check "POST /_setup/connect connects to the databases" jq_ok '.connected == true'
+req POST /_setup/connect
+check "connecting twice is refused (restart to change the databases)" status_is_error
+req GET /api/internal/admin/users
+check "after connecting, the admin API works without login" status_is 200
+req POST /api/internal/admin/endpoints/load
+check "Load endpoints discovers the schema" jq_ok '.loaded >= 10'
+req GET /api/v1/departments
+check "after loading, the generated endpoints are served" jq_ok 'length >= 3'
+req PUT /_setup/config '{}'
+check "the setup settings can't be changed once connected" status_is 409
+
+BASE="$MAIN_BASE"
+kill "$SETUP_PID" 2>/dev/null || true
+wait "$SETUP_PID" 2>/dev/null || true
+SETUP_PID=""
 
 # ---------------------------------------------------------------------------
 # Summary
