@@ -189,16 +189,28 @@ pub fn record_execution(endpoint_id: &str, status: u16, elapsed_ms: u64) {
     DIRTY.store(true, Ordering::Relaxed);
 }
 
-/// Statistics grouped for the panel: by method, by endpoint (requests are matched to the
-/// endpoints' routes) and by status.
+/// Statistics grouped for the panel: the project's API (endpoints on the project's database),
+/// Silence's own API (`/api/internal`, the admin panel's traffic) and the front-end. Each API by
+/// method, by endpoint (requests are matched to the endpoints' routes) and by status.
 pub async fn report() -> serde_json::Value {
+    let database = serde_json::to_value(AppCx::acquire().config().read().await.databases_conn())
+        .ok()
+        .and_then(|conn| conn["main"]["db"].as_str().map(str::to_owned))
+        .unwrap_or_default();
+    let api_prefix = RuntimeCx::acquire()
+        .build()
+        .read()
+        .await
+        .executor()
+        .api_prefix()
+        .trim_matches('/')
+        .to_string();
     let stats = STATS.lock().unwrap().to_owned();
 
     // Route patterns of the loaded HTTP endpoints: `/api/{version}/{route}` with `{param}` as one
     // path segment.
     let patterns = {
         let build = RuntimeCx::acquire().build().read().await;
-        let api_prefix = build.executor().api_prefix().trim_matches('/').to_string();
 
         build
             .endpoints()
@@ -238,6 +250,7 @@ pub async fn report() -> serde_json::Value {
                     http_target.method().to_string().to_uppercase(),
                     format!("/{}", path),
                     Regex::new(&pattern).ok()?,
+                    is_measured(http_target),
                     http_target
                         .version()
                         .as_deref()
@@ -248,82 +261,21 @@ pub async fn report() -> serde_json::Value {
             .collect::<Vec<_>>()
     };
 
-    let mut by_method = BTreeMap::<String, u64>::new();
-    let mut requests_by_endpoint = BTreeMap::<String, u64>::new();
-    let mut unmatched = BTreeMap::<String, u64>::new();
-    let mut total = 0;
+    // Requests that match no loaded endpoint (removed ones) go to the API their path belongs to.
+    let internal_prefix = format!("/{}/internal", api_prefix).replace("//", "/");
 
-    for (key, count) in &stats.requests {
-        let (method, path) = key.split_once(' ').unwrap_or((key, ""));
-
-        total += count;
-        *by_method.entry(method.to_string()).or_default() += count;
-
-        match patterns.iter().find(|(_, endpoint_method, _, regex, _)| {
-            endpoint_method == method && regex.is_match(path)
-        }) {
-            Some((id, ..)) => *requests_by_endpoint.entry(id.to_owned()).or_default() += count,
-            None => *unmatched.entry(key.to_owned()).or_default() += count,
-        }
-    }
-
-    let mut by_status = BTreeMap::<u16, u64>::new();
-
-    for execution in stats.executions.values() {
-        for (status, count) in &execution.statuses {
-            *by_status.entry(*status).or_default() += count;
-        }
-    }
-
-    let ids = requests_by_endpoint
-        .keys()
-        .chain(stats.executions.keys())
-        .cloned()
-        .collect::<std::collections::BTreeSet<_>>();
-
-    let endpoints = ids
-        .iter()
-        .map(|id| {
-            let execution = stats.executions.get(id).cloned().unwrap_or_default();
-            let (method, route, internal) = patterns
-                .iter()
-                .find(|(endpoint_id, ..)| endpoint_id == id)
-                .map(|(_, method, route, _, internal)| (method.to_owned(), route.to_owned(), *internal))
-                .unwrap_or_default();
-            let requests = requests_by_endpoint.get(id).copied().unwrap_or(0);
-
-            json!({
-                "id": id,
-                "method": method,
-                "route": route,
-                // Silence's own API (the admin panel's traffic).
-                "internal": internal,
-                "requests": requests,
-                "executions": execution.count,
-                // Requests that never ran (authentication, missing params...).
-                "rejected": requests.saturating_sub(execution.count),
-                "errors": execution.errors,
-                "avg_ms": if execution.count > 0 { execution.total_ms as f64 / execution.count as f64 } else { 0.0 },
-                "max_ms": execution.max_ms,
-            })
-        })
-        .collect::<Vec<_>>();
-
-    let executions = stats
-        .executions
-        .values()
-        .map(|execution| execution.count)
-        .sum::<u64>();
-    let errors = stats
-        .executions
-        .values()
-        .map(|execution| execution.errors)
-        .sum::<u64>();
-    let total_ms = stats
-        .executions
-        .values()
-        .map(|execution| execution.total_ms)
-        .sum::<u64>();
+    let api = api_report(
+        &stats,
+        &patterns,
+        |path| !path.starts_with(&internal_prefix),
+        false,
+    );
+    let silence = api_report(
+        &stats,
+        &patterns,
+        |path| path.starts_with(&internal_prefix),
+        true,
+    );
 
     let mut web_by_kind = BTreeMap::<&str, u64>::new();
     let mut web_files = stats
@@ -355,15 +307,157 @@ pub async fn report() -> serde_json::Value {
 
     json!({
         "since": stats.since,
+        "database": database,
+        "api": api,
+        "silence": silence,
+        "web": web,
+    })
+}
+
+/// `(id, METHOD, route, route regex, measured, internal)` of a loaded HTTP endpoint.
+type RoutePattern = (String, String, String, Regex, bool, bool);
+
+/// Whether the endpoint's executions are measured: only the SQL ones (`MySQLExecutorProxy`, also
+/// inside the users and sessions proxies). The others (endpoints and tests managers, config...)
+/// have requests but no executions.
+fn is_measured(http_target: &HttpTarget) -> bool {
+    use crate::internal_endpoints::mysql_proxy::*;
+
+    http_target
+        .execution_pipeline()
+        .as_ref()
+        .is_some_and(|atom| {
+            let executor = atom.executor().to_owned().into_arc_any();
+
+            executor.is::<MySQLExecutorProxy>()
+                || executor.is::<MySQLUserProxy>()
+                || executor.is::<MySQLSessionProxy>()
+        })
+}
+
+/// Statistics of one of the APIs: the project's (`internal == false`) or Silence's.
+fn api_report(
+    stats: &Stats,
+    patterns: &[RoutePattern],
+    unmatched_belongs: impl Fn(&str) -> bool,
+    internal: bool,
+) -> serde_json::Value {
+    let mut by_method = BTreeMap::<String, u64>::new();
+    let mut requests_by_endpoint = BTreeMap::<String, u64>::new();
+    let mut unmatched = BTreeMap::<String, u64>::new();
+    let mut total = 0;
+
+    for (key, count) in &stats.requests {
+        let (method, path) = key.split_once(' ').unwrap_or((key, ""));
+
+        match patterns.iter().find(|(_, endpoint_method, _, regex, ..)| {
+            endpoint_method == method && regex.is_match(path)
+        }) {
+            Some((id, .., endpoint_internal)) if *endpoint_internal == internal => {
+                *requests_by_endpoint.entry(id.to_owned()).or_default() += count
+            }
+            None if unmatched_belongs(path) => {
+                *unmatched.entry(key.to_owned()).or_default() += count
+            }
+            _ => continue,
+        }
+
+        total += count;
+        *by_method.entry(method.to_string()).or_default() += count;
+    }
+
+    // Executions of endpoints no longer loaded count in the project's API.
+    let executions = stats
+        .executions
+        .iter()
+        .filter(|(id, _)| {
+            patterns
+                .iter()
+                .find(|(endpoint_id, ..)| endpoint_id == *id)
+                .map_or(false, |(.., endpoint_internal)| *endpoint_internal)
+                == internal
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let mut by_status = BTreeMap::<u16, u64>::new();
+
+    for execution in executions.values() {
+        for (status, count) in &execution.statuses {
+            *by_status.entry(*status).or_default() += count;
+        }
+    }
+
+    let ids = requests_by_endpoint
+        .keys()
+        .chain(executions.keys().copied())
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+
+    let endpoints = ids
+        .iter()
+        .map(|id| {
+            let execution = executions.get(id).copied().cloned().unwrap_or_default();
+            // Endpoints no longer loaded are measured if they have executions.
+            let (method, route, measured) = patterns
+                .iter()
+                .find(|(endpoint_id, ..)| endpoint_id == id)
+                .map(|(_, method, route, _, measured, _)| {
+                    (method.to_owned(), route.to_owned(), *measured)
+                })
+                .unwrap_or((String::new(), String::new(), true));
+            let requests = requests_by_endpoint.get(id).copied().unwrap_or(0);
+
+            if !measured {
+                return json!({
+                    "id": id,
+                    "method": method,
+                    "route": route,
+                    "requests": requests,
+                    "executions": null,
+                    "rejected": null,
+                    "errors": null,
+                    "avg_ms": null,
+                    "max_ms": null,
+                });
+            }
+
+            json!({
+                "id": id,
+                "method": method,
+                "route": route,
+                "requests": requests,
+                "executions": execution.count,
+                // Requests that never ran (authentication, missing params...).
+                "rejected": requests.saturating_sub(execution.count),
+                "errors": execution.errors,
+                "avg_ms": if execution.count > 0 { execution.total_ms as f64 / execution.count as f64 } else { 0.0 },
+                "max_ms": execution.max_ms,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let count = executions
+        .values()
+        .map(|execution| execution.count)
+        .sum::<u64>();
+    let errors = executions
+        .values()
+        .map(|execution| execution.errors)
+        .sum::<u64>();
+    let total_ms = executions
+        .values()
+        .map(|execution| execution.total_ms)
+        .sum::<u64>();
+
+    json!({
         "requests": total,
-        "executions": executions,
+        "executions": count,
         "errors": errors,
-        "avg_ms": if executions > 0 { total_ms as f64 / executions as f64 } else { 0.0 },
+        "avg_ms": if count > 0 { total_ms as f64 / count as f64 } else { 0.0 },
         "by_method": by_method,
         "by_status": by_status,
         "endpoints": endpoints,
         "unmatched": unmatched,
-        "web": web,
     })
 }
 

@@ -14,13 +14,13 @@ interface EndpointStats {
     id: string;
     method: string;
     route: string;
-    internal: boolean;
     requests: number;
-    executions: number;
-    rejected: number;
-    errors: number;
-    avg_ms: number;
-    max_ms: number;
+    // `null` when the endpoint's executions aren't measured (only SQL endpoints are).
+    executions: number | null;
+    rejected: number | null;
+    errors: number | null;
+    avg_ms: number | null;
+    max_ms: number | null;
 }
 
 interface WebFileStats {
@@ -40,8 +40,7 @@ interface WebStats {
     files: WebFileStats[];
 }
 
-interface StatsReport {
-    since: string;
+interface ApiStats {
     requests: number;
     executions: number;
     errors: number;
@@ -50,6 +49,16 @@ interface StatsReport {
     by_status: Record<string, number>;
     endpoints: EndpointStats[];
     unmatched: Record<string, number>;
+}
+
+interface StatsReport {
+    since: string;
+    /** The project's database (its API's tab is named after it). */
+    database: string;
+    /** The project's API. */
+    api: ApiStats;
+    /** Silence's own API (`/api/internal`, the admin panel's traffic). */
+    silence: ApiStats;
     web: WebStats;
 }
 
@@ -70,6 +79,12 @@ const size = (bytes: number) =>
           ? `${(bytes / 1024).toFixed(1)} KB`
           : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
+/** A measure of an endpoint, `—` when it isn't measured. */
+const measure = (
+    value: number | null,
+    format: (value: number) => string = String,
+) => (value === null ? "—" : format(value));
+
 const percent = (part: number, total: number) =>
     total > 0 ? `${Math.round((part / total) * 100)}%` : "—";
 
@@ -79,16 +94,17 @@ const percent = (part: number, total: number) =>
  */
 export default () => {
     const [stats, { refetch }] = createResource(fetch_stats);
-    const [show_internal, set_show_internal] = createSignal(false);
-    const [view, set_view] = createSignal<"api" | "web">("api");
+    const [view, set_view] = createSignal<"api" | "silence" | "web">("api");
+
+    // Statistics of the API shown: the project's or Silence's.
+    const group = () =>
+        view() === "silence" ? stats()?.silence : stats()?.api;
 
     const timer = setInterval(() => refetch(), REFRESH_MS);
     onCleanup(() => clearInterval(timer));
 
     const endpoints = createMemo(() =>
-        (stats()?.endpoints ?? [])
-            .filter((endpoint) => show_internal() || !endpoint.internal)
-            .sort((a, b) => b.requests - a.requests),
+        [...(group()?.endpoints ?? [])].sort((a, b) => b.requests - a.requests),
     );
 
     const reset = async () => {
@@ -135,7 +151,15 @@ export default () => {
                     classList={{ "tab-active": view() === "api" }}
                     onClick={() => set_view("api")}
                 >
-                    API
+                    API ({stats()?.database || "database"})
+                </button>
+                <button
+                    role="tab"
+                    class="tab"
+                    classList={{ "tab-active": view() === "silence" }}
+                    onClick={() => set_view("silence")}
+                >
+                    API (Silence)
                 </button>
                 <button
                     role="tab"
@@ -260,36 +284,36 @@ export default () => {
                 </div>
             </Show>
 
-            <Show when={stats() && view() === "api"}>
+            <Show when={group()}>
                 <div class="stats stats-vertical lg:stats-horizontal border border-base-300 bg-base-100">
                     <div class="stat">
                         <div class="stat-title">Requests</div>
-                        <div class="stat-value">{stats()!.requests}</div>
+                        <div class="stat-value">{group()!.requests}</div>
                         <div class="stat-desc">
                             reaching an endpoint (rejected ones included)
                         </div>
                     </div>
                     <div class="stat">
                         <div class="stat-title">Executions</div>
-                        <div class="stat-value">{stats()!.executions}</div>
+                        <div class="stat-value">{group()!.executions}</div>
                         <div class="stat-desc">SQL endpoints that ran</div>
                     </div>
                     <div class="stat">
                         <div class="stat-title">Errors</div>
                         <div
                             class="stat-value"
-                            classList={{ "text-error": stats()!.errors > 0 }}
+                            classList={{ "text-error": group()!.errors > 0 }}
                         >
-                            {stats()!.errors}
+                            {group()!.errors}
                         </div>
                         <div class="stat-desc">
-                            {percent(stats()!.errors, stats()!.executions)} of
+                            {percent(group()!.errors, group()!.executions)} of
                             the executions (4xx/5xx)
                         </div>
                     </div>
                     <div class="stat">
                         <div class="stat-title">Average time</div>
-                        <div class="stat-value">{ms(stats()!.avg_ms)}</div>
+                        <div class="stat-value">{ms(group()!.avg_ms)}</div>
                         <div class="stat-desc">per execution</div>
                     </div>
                 </div>
@@ -305,7 +329,7 @@ export default () => {
                             </thead>
                             <tbody>
                                 <For
-                                    each={Object.entries(stats()!.by_method)}
+                                    each={Object.entries(group()!.by_method)}
                                     fallback={
                                         <tr>
                                             <td colspan="2">
@@ -334,7 +358,7 @@ export default () => {
                             </thead>
                             <tbody>
                                 <For
-                                    each={Object.entries(stats()!.by_status)}
+                                    each={Object.entries(group()!.by_status)}
                                     fallback={
                                         <tr>
                                             <td colspan="2">
@@ -365,17 +389,6 @@ export default () => {
 
                 <div class="flex items-center gap-2">
                     <h2 class="text-xl font-bold">By endpoint</h2>
-                    <label class="label cursor-pointer gap-2 ml-auto text-sm">
-                        <input
-                            type="checkbox"
-                            class="checkbox checkbox-sm"
-                            checked={show_internal()}
-                            onChange={(event) =>
-                                set_show_internal(event.currentTarget.checked)
-                            }
-                        />
-                        Show internal (admin panel traffic)
-                    </label>
                 </div>
                 <div class="border border-base-300 rounded-box bg-base-100 overflow-x-auto">
                     <table class="table table-sm">
@@ -422,28 +435,29 @@ export default () => {
                                             class="text-right"
                                             classList={{
                                                 "text-warning":
-                                                    endpoint.rejected > 0,
+                                                    (endpoint.rejected ?? 0) >
+                                                    0,
                                             }}
                                         >
-                                            {endpoint.rejected}
+                                            {measure(endpoint.rejected)}
                                         </td>
                                         <td class="text-right">
-                                            {endpoint.executions}
+                                            {measure(endpoint.executions)}
                                         </td>
                                         <td
                                             class="text-right"
                                             classList={{
                                                 "text-error":
-                                                    endpoint.errors > 0,
+                                                    (endpoint.errors ?? 0) > 0,
                                             }}
                                         >
-                                            {endpoint.errors}
+                                            {measure(endpoint.errors)}
                                         </td>
                                         <td class="text-right">
-                                            {ms(endpoint.avg_ms)}
+                                            {measure(endpoint.avg_ms, ms)}
                                         </td>
                                         <td class="text-right">
-                                            {ms(endpoint.max_ms)}
+                                            {measure(endpoint.max_ms, ms)}
                                         </td>
                                     </tr>
                                 )}
@@ -452,14 +466,14 @@ export default () => {
                     </table>
                 </div>
 
-                <Show when={Object.keys(stats()!.unmatched).length > 0}>
+                <Show when={Object.keys(group()!.unmatched).length > 0}>
                     <h2 class="text-xl font-bold">
                         Requests to removed endpoints
                     </h2>
                     <div class="border border-base-300 rounded-box bg-base-100">
                         <table class="table table-sm">
                             <tbody>
-                                <For each={Object.entries(stats()!.unmatched)}>
+                                <For each={Object.entries(group()!.unmatched)}>
                                     {([path, count]) => (
                                         <tr>
                                             <td class="font-mono">{path}</td>
