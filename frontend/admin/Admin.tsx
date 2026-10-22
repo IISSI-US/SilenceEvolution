@@ -252,14 +252,16 @@ export default (props: RouteSectionProps) => {
                         aria-label="close sidebar"
                         class="drawer-overlay"
                     ></label>
-                    <div class="flex h-full flex-col items-start fixed is-drawer-close:w-16 is-drawer-open:w-40 transition duration-300 ease-in-out will-change-[width]">
+                    <div class="flex h-full flex-col items-start fixed w-16">
                         <ul class="menu h-full bg-base-200 lg:bg-base-100 border-[0.5px] border-base-200 shadow-sm rounded-box m-2 p-2 gap-2 [&_li]:transition [&_li]:duration-200 [&_li]:hover:scale-105">
                             <li>
-                                <A href="/config">
+                                <A
+                                    href="/config"
+                                    class="tooltip tooltip-right"
+                                    data-tip="Config"
+                                    aria-label="Config"
+                                >
                                     <Icon name="config" class="scale-95" />
-                                    <span class="is-drawer-close:hidden">
-                                        Config
-                                    </span>
                                 </A>
                             </li>
                             <li
@@ -268,11 +270,13 @@ export default (props: RouteSectionProps) => {
                                         session()?.connected === false,
                                 }}
                             >
-                                <A href="/endpoints">
+                                <A
+                                    href="/endpoints"
+                                    class="tooltip tooltip-right"
+                                    data-tip="Endpoints"
+                                    aria-label="Endpoints"
+                                >
                                     <Icon name="endpoints" class="scale-95" />
-                                    <span class="is-drawer-close:hidden">
-                                        Endpoints
-                                    </span>
                                 </A>
                             </li>
                             <li
@@ -281,11 +285,13 @@ export default (props: RouteSectionProps) => {
                                         session()?.connected === false,
                                 }}
                             >
-                                <A href="/tests">
+                                <A
+                                    href="/tests"
+                                    class="tooltip tooltip-right"
+                                    data-tip="Tests"
+                                    aria-label="Tests"
+                                >
                                     <Icon name="tests" class="scale-95" />
-                                    <span class="is-drawer-close:hidden">
-                                        Tests
-                                    </span>
                                 </A>
                             </li>
                             <li
@@ -294,17 +300,14 @@ export default (props: RouteSectionProps) => {
                                         session()?.connected === false,
                                 }}
                             >
-                                <A href="/users">
+                                <A
+                                    href="/users"
+                                    class="tooltip tooltip-right"
+                                    data-tip="Users"
+                                    aria-label="Users"
+                                >
                                     <Icon name="users" class="scale-95" />
-                                    <span class="is-drawer-close:hidden">
-                                        Users
-                                    </span>
                                 </A>
-                            </li>
-                            <li class="absolute bottom-0 my-2">
-                                <label for="app-drawer">
-                                    <Icon name="sidebar" class="scale-95" />
-                                </label>
                             </li>
                         </ul>
                     </div>
