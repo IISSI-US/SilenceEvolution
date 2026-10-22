@@ -101,15 +101,23 @@ impl Default for DatabasesConnectionConfig {
 }
 
 impl Config {
-    pub fn into_database_config(&self) -> CheapVec<DatabaseConfig> {
-        let mut database_configs = CheapVec::new();
-
+    /// Tables left out of the schema discovery: the configured ones plus Silence's internal
+    /// tables (users, sessions, roles), which live in the app database when there is no separate
+    /// users database and must never get generated endpoints.
+    pub fn discovery_skipped_tables(&self) -> CheapVec<CompactString> {
         let mut skip_tables = self.skip_discovery_tables().to_owned();
+
         skip_tables.append(&mut CheapVec::<CompactString>::from_vec(vec![
             self.internal_params.users_target_table.to_owned(),
             self.internal_params.sessions_target_table.to_owned(),
             self.internal_params.roles_target_table.to_owned(),
         ]));
+
+        skip_tables
+    }
+
+    pub fn into_database_config(&self) -> CheapVec<DatabaseConfig> {
+        let mut database_configs = CheapVec::new();
 
         database_configs.push(DatabaseConfig::new(
             "main".to_compact_string(),

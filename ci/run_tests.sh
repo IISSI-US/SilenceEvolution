@@ -822,10 +822,13 @@ BASE="http://127.0.0.1:${SETUP_PORT}"
 
 check "run in an empty directory (hidden files ignored) creates config.json" test -f "$SETUP_DIR/config.json"
 check "run in an empty directory creates endpoints/, tests/ and web/" test -d "$SETUP_DIR/endpoints" -a -d "$SETUP_DIR/tests" -a -d "$SETUP_DIR/web"
+check "the new project has a starting web/index.html for the student's front-end" grep -q "Tu front-end va aquí" "$SETUP_DIR/web/index.html"
 req GET /_setup/status
 check "the new project starts in setup mode (not connected, local admin)" jq_ok '.connected == false and .local_admin == true and (.error | length > 0)'
 req GET /admin
 check "the admin panel is served in setup mode" status_is 200
+req GET /
+check "GET / serves the new project's web/index.html" body_contains "Tu front-end va aquí"
 req GET /_setup/config
 check "GET /_setup/config returns the default settings" jq_ok '.databases_conn.main.db == "example_db"'
 req POST /_setup/databases "$(json --arg host "$DB_HOST:$DB_PORT" --arg user "$DB_USER" --arg pass "$DB_PASSWORD" '{host: $host, username: $user, password: $pass}')"
@@ -833,9 +836,8 @@ check "POST /_setup/databases lists the server's databases" jq_ok 'any(.name == 
 req POST /_setup/databases "$(json --arg host "$DB_HOST:$DB_PORT" --arg user "$DB_USER" '{host: $host, username: $user, password: "wrong"}')"
 check "POST /_setup/databases with a wrong password is an error" status_is 400
 req PUT /_setup/config "$(json --arg host "$DB_HOST:$DB_PORT" --arg user "$DB_USER" --arg pass "$DB_PASSWORD" \
-    '{databases_conn: {main: {host: $host, username: $user, password: $pass, db: "silence_ci_db"},
-                       internal: {host: $host, username: $user, password: $pass, db: "silence_ci_internal_db"}}}')"
-check "PUT /_setup/config saves the connections" status_is 200
+    '{databases_conn: {main: {host: $host, username: $user, password: $pass, db: "silence_ci_db"}, internal: null}}')"
+check "PUT /_setup/config saves the connections (users in the app database)" status_is 200
 check "the connections are written to config.json" jq -e '.databases_conn.main.db == "silence_ci_db"' "$SETUP_DIR/config.json"
 req GET /api/v1/departments
 check "before connecting, the database's endpoints are not served" status_is_error
@@ -849,6 +851,10 @@ req POST /api/internal/admin/endpoints/load
 check "Load endpoints discovers the schema" jq_ok '.loaded >= 10'
 req GET /api/v1/departments
 check "after loading, the generated endpoints are served" jq_ok 'length >= 3'
+for table in silence_users silence_sessions silence_roles; do
+    req GET "/api/v1/$table"
+    check "Silence's internal table $table gets no generated endpoint" status_is 404
+done
 req PUT /_setup/config '{}'
 check "the setup settings can't be changed once connected" status_is 409
 # Subscribe, then make the server log something (a request) while the stream is open.

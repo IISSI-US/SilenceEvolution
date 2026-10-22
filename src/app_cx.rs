@@ -205,11 +205,7 @@ impl AppCx {
                         CheapVec::from_iter([EndpointGeneratorConfig::new(
                             Arc::new(MySQLSchemaDiscovery::new(
                                 "main".into(),
-                                self.config()
-                                    .read()
-                                    .await
-                                    .skip_discovery_tables()
-                                    .to_owned(),
+                                self.config().read().await.discovery_skipped_tables(),
                             )),
                             false,
                         )]),
