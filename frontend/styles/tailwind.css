@@ -1,7 +1,83 @@
 @import "tailwindcss";
 
+/* Custom themes with the same design tokens as the new panel (panel/styles/_tokens.scss on the
+   `experimentos` branch): neutral surfaces, one accent, small radii, no depth effects. */
 @plugin "daisyui" {
-    themes:
-        nord --default,
-        synthwave --prefersdark;
+    themes: false;
 }
+
+@plugin "daisyui/theme" {
+    name: "silence";
+    default: true;
+    prefersdark: false;
+    color-scheme: light;
+
+    --color-base-100: #ffffff;
+    --color-base-200: #f6f7f9;
+    --color-base-300: #dfe3e8;
+    --color-base-content: #1b2330;
+    --color-primary: #2f5bd3;
+    --color-primary-content: #ffffff;
+    --color-secondary: #5d6878;
+    --color-secondary-content: #ffffff;
+    --color-accent: #2f5bd3;
+    --color-accent-content: #ffffff;
+    --color-neutral: #1b2330;
+    --color-neutral-content: #ffffff;
+    --color-info: #2f5bd3;
+    --color-info-content: #ffffff;
+    --color-success: #1f7a4d;
+    --color-success-content: #ffffff;
+    --color-warning: #9a6200;
+    --color-warning-content: #ffffff;
+    --color-error: #c23434;
+    --color-error-content: #ffffff;
+
+    --radius-selector: 0.3125rem;
+    --radius-field: 0.3125rem;
+    --radius-box: 0.5rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.25rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+    name: "silence-dark";
+    default: false;
+    prefersdark: true;
+    color-scheme: dark;
+
+    --color-base-100: #181d25;
+    --color-base-200: #11151b;
+    --color-base-300: #2b3340;
+    --color-base-content: #e6eaf0;
+    --color-primary: #7c9cf5;
+    --color-primary-content: #0d1220;
+    --color-secondary: #9aa5b5;
+    --color-secondary-content: #0d1220;
+    --color-accent: #7c9cf5;
+    --color-accent-content: #0d1220;
+    --color-neutral: #e6eaf0;
+    --color-neutral-content: #11151b;
+    --color-info: #7c9cf5;
+    --color-info-content: #0d1220;
+    --color-success: #5fcf95;
+    --color-success-content: #0d1220;
+    --color-warning: #f1b54f;
+    --color-warning-content: #0d1220;
+    --color-error: #f07a7a;
+    --color-error-content: #0d1220;
+
+    --radius-selector: 0.3125rem;
+    --radius-field: 0.3125rem;
+    --radius-box: 0.5rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.25rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
+}
+
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200");
