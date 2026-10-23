@@ -613,6 +613,13 @@ xfail "missing body param is a client error (4xx)" \
 req POST /api/v1/departments 'name=Química&city=Málaga'
 check "POST with a non-JSON body returns 400" status_is 400
 
+req POST /api/v1/departments '{"name": "Ciudad nula", "city": null}'
+check "POST with a null body param is accepted" status_is 200
+xfail "a JSON null body param is stored as SQL NULL" \
+    "it reaches the database as the string 'null' (a nullable column can't be set to NULL, a NOT NULL one accepts it)" \
+    test "$(sql silence_ci_db -N -e "SELECT city IS NULL FROM departments WHERE name = 'Ciudad nula'")" = 1
+sql silence_ci_db -e "DELETE FROM departments WHERE name = 'Ciudad nula'"
+
 req PUT "/api/v1/departments/$NEW_DEPT_ID" "$(json '{name: "Tests Department", city: "Land of Testing"}')"
 check "PUT updates the department (200)" status_is 200
 req GET "/api/v1/departments/$NEW_DEPT_ID"
