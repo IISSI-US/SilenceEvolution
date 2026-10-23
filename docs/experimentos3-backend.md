@@ -203,6 +203,8 @@ Un test compuesto es una lista ordenada de tests unitarios (por nombre). Se guar
 3. **Lo que se apoya en `/_setup`:** 9 (estadísticas) y 10 (tests compuestos). Antes, decidir si `/_setup` se queda o si conviene esperar a un enganche en Waveless.
 4. **6 (autenticar para tests):** solo tiene sentido con el panel nuevo de tests.
 
+**Prioritario, aunque no forma parte de este experimento:** que Silence admita contraseñas en texto plano y que las tablas de usuarios y roles se puedan configurar. Son necesarios para el nuevo enfoque de usuarios del Lab 6 (ver "Revisión: el usuario es parte del dominio").
+
 ## El problema del `user_id`
 
 ### Problema
@@ -278,6 +280,96 @@ Waveless ya lo admite: `MySQLSimpleAuthentication`, `MySQLRole` y `MySQLToken` r
 - **A mano:** un `INSERT INTO app_users ...` en el script de datos del alumno. Funciona ya, sin cambios en Silence.
 - **Desde el panel:** con la tabla y columnas del enlace en `config.json`, la vista de Usuarios podría mostrar una columna "Persona" con un selector, avisar de los usuarios sin enlace y borrar la fila al borrar el usuario. La inyección sigue siendo solo `|user_id|`.
 
-### Recomendación
+### Recomendación inicial
 
-**A** (tabla de enlace), rellenada a mano de momento y con el soporte del panel como mejora posterior. Cumple los cuatro requisitos, no exige cambios en Silence para empezar y se puede enseñar como parte del modelo: el usuario del sistema y la persona del dominio son cosas distintas. **D** merece la pena si se decide que todos los usuarios deben ser entidades de la aplicación, como en el antiguo Silence.
+**A** (tabla de enlace), rellenada a mano de momento y con el soporte del panel como mejora posterior. Cumple los cuatro requisitos y no exige cambios en Silence para empezar. El análisis del dominio de la sección siguiente cambia esta recomendación.
+
+## Revisión: el usuario es parte del dominio
+
+### Qué dicen los requisitos de L0 y los labs
+
+- **RNF01 (Control de acceso)** define tres roles (admin, teacher, student) con permisos por tabla. El rol es un requisito del sistema de información, no un detalle de la herramienta.
+- **RF07, "Conocer *mi* nota media"**, y **RF06, "las notas… que *ha* cursado"**: el sistema tiene que saber qué alumno está conectado, y ese alumno es una persona del dominio. RF01 (el profesor añade notas) lo necesitaría también si se limita a los grupos del profesor.
+- **Los actores son personas.** Alumno y Profesor ya lo son en el modelo (`students` y `professors` son subtipos de `people`). Director y Secretario no aparecen, pero también son personas.
+- **Labs 1–5:** `grades_db` se construye entera con scripts (`create_db.sql`, `functions.sql`, `triggers.sql`, `populate_db.sql`…) y no se habla de autenticación.
+- **Lab 6 hoy:**
+  - Los usuarios se crean a mano en el panel, en una `silence_db` compartida entre proyectos.
+  - Para usar `|user_id|` se exige que el `user_id` de Silence coincida con el `person_id`: es la alternativa C, la más frágil.
+- **Una errata en Lab 6:** dice que `|user_id|` inyecta "el token". Inyecta el id del usuario; el token es `|token|`.
+
+Conclusión: **la cuenta (contraseña y rol) pertenece a la persona** y es razonable que esté en `grades_db`. El requisito 4 (un admin que no está en la BD) no encaja con el dominio: el admin es una persona del centro.
+
+### Propuesta: tabla de credenciales 1:1 con `people`
+
+Se añade en el Lab 6 con un script nuevo (`auth.sql`), sin tocar los labs 1–5:
+
+```sql
+-- auth.sql: credenciales de acceso (RNF01), 1:1 con people.
+-- Ejecutar después de populate_db.sql.
+USE grades_db;
+
+CREATE OR REPLACE TABLE credentials (
+  person_id INT PRIMARY KEY,
+  password  VARCHAR(128) NOT NULL,
+  role      VARCHAR(10)  NOT NULL,
+  CONSTRAINT fk_credentials_person FOREIGN KEY (person_id)
+    REFERENCES people (person_id) ON DELETE CASCADE,
+  CONSTRAINT ck_credentials_rnf01_role CHECK (role IN ('admin', 'teacher', 'student'))
+);
+
+SET @password = 'iissi2026';   -- ver "Cómo cargar las contraseñas"
+
+INSERT INTO credentials (person_id, password, role)
+  SELECT professor_id, @password, 'teacher' FROM professors;
+
+INSERT INTO credentials (person_id, password, role)
+  SELECT student_id, @password, 'student' FROM students;
+
+-- Administrador. En los datos actuales no hay personal no docente: se usa la persona 1.
+UPDATE credentials SET role = 'admin' WHERE person_id = 1;
+```
+
+- **`|user_id|` es directamente el `person_id`.** Desaparecen la regla de que los ids coincidan, `silence_users` y `silence_roles`.
+- **Repasa lo visto en los labs anteriores:** clave ajena 1:1, `ON DELETE CASCADE`, CHECK con nombre de regla, y RN09 (no hay NULL: quien no tiene cuenta no tiene fila).
+- **Login:** el email de `people` y la contraseña de `credentials`.
+- **Endpoints de L0:** salen directos, por ejemplo RF07: `SELECT AVG(grade_value) FROM grades WHERE student_id = |user_id|`.
+
+**Qué necesita Silence** (es la alternativa D):
+- **Configuración:** un bloque en `config.json` al estilo de `USER_AUTH_DATA`, con la tabla y las columnas del login, la contraseña y el rol. Waveless ya recibe todo esto como parámetros; solo hay que dejar de tenerlo fijo en `into_build`.
+- **Login y contraseña en tablas distintas:** el login (email) está en `people` y la contraseña en `credentials`. Waveless espera las dos en la misma tabla. Se resuelve con una vista de lectura (`people JOIN credentials`); hay que probarlo.
+- **`SignUp` desactivable:** en el dominio, las cuentas las crea el centro.
+- **Panel de Usuarios:** sus consultas tienen escrito a fuego `silence_users`. Con este modo, los usuarios se gestionan con los endpoints de la aplicación, y el panel solo necesita listarlos y el botón Authenticate.
+- **Administrador del panel:** sigue siendo el administrador local, sin cuenta.
+
+### Cómo cargar las contraseñas
+
+Waveless verifica hashes argon2, y MariaDB no sabe calcularlos (solo tiene `SHA2`).
+
+| # | Opción | A favor | En contra |
+|---|---|---|---|
+| 1 | **Hash ya calculado en el script.** `SET @password = '$argon2id$v=19$m=19456,t=2,p=1$…'`, generado con un comando como `silence hash iissi2026`. El mismo hash vale para todas las filas porque incluye su propia sal | Cero casos especiales en Silence; la BD queda completa con los scripts | Cadena opaca; hace falta el comando para generarla |
+| 2 | **Texto plano en el script y Silence lo convierte en hash al arrancar** (las contraseñas que no empiezan por `$argon2`) | Script legible; se ve en clase que acaba cifrada | Silence escribe en una tabla del alumno al arrancar; la contraseña está en claro hasta entonces |
+| 3 | **Admitir contraseñas en texto plano**, como el `ALLOW_CLEAR_PASSWORDS` del antiguo Silence: `SET @password = 'iissi2026';` | **La más simple**; el script es legible | Enseña una mala práctica; solo para desarrollo |
+| 4 | **`SHA2` con sal calculado en SQL** (por ejemplo, una función `f_hash_password` como las del Lab 5) | Encaja con el Lab 5 | Obliga a cambiar Waveless; SHA2 es peor que argon2 para contraseñas |
+| 5 | **Asignarlas desde el panel** ("Set password") | Cómodo para cambiar una suelta | Se pierden al recrear la BD con los scripts |
+
+**La más simple es la 3.** Además, el script de la 1 y el de la 3 son idénticos salvo la línea de `@password`, así que se puede empezar con la 3 y pasar a la 1 cambiando una sola línea.
+
+**Prioritario: añadir a Silence la opción de guardar contraseñas en texto plano.** Una opción en `config.json` (por ejemplo `"allow_clear_passwords": true`) con la que el login acepte la contraseña tal cual si lo guardado no es un hash argon2. Silence debería avisar en la consola al arrancar mientras esté activa. Sin esta opción, el Lab 6 no puede cargar las cuentas desde un script legible.
+
+### Riesgo de compartir `silence_db` entre proyectos
+
+Lab 6 comparte la BD interna "para que varias BBDD compartan usuarios silence". Si las cuentas pasan a cada proyecto y solo se comparten las sesiones, un token del proyecto `grades` valdría en otro proyecto que use la misma `silence_db`, y entraría como la persona que tenga ese mismo id. Hay dos salidas:
+- Cada proyecto con su propia BD interna o tabla de sesiones.
+- Las sesiones guardan también el proyecto.
+
+### Recomendación revisada
+
+1. **Tabla `credentials` 1:1 con `people`**, cargada con `auth.sql` (alternativa D, con las cuentas en el dominio).
+2. **Contraseñas en texto plano (opción 3)** para el Lab 6. Más adelante, la opción 1 cambiando una línea.
+3. **Cambios en Silence, por orden de prioridad:**
+   1. Opción de contraseñas en texto plano.
+   2. Tabla y columnas de usuarios y roles configurables en `config.json`.
+   3. Sesiones separadas por proyecto.
+   4. Adaptar el panel de Usuarios.
+   5. Comando `silence hash`.
