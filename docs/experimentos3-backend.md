@@ -26,6 +26,62 @@ Respecto a `main`, la única diferencia de backend que trae la base `experimento
 
 "Depende de" indica qué cambios hacen falta antes. Los que no dependen de nada se pueden llevar a `main` por separado.
 
+## Impacto en líneas de código
+
+Calculado con `git diff --numstat experimentos2-b..experimentos3`. Son líneas añadidas y quitadas, incluidos comentarios y líneas en blanco.
+
+### Por área
+
+| Área | Ficheros | Añadidas | Quitadas |
+|---|---|---|---|
+| Backend (`src/`, `Cargo.toml`, `templates/`) | 15 | 1569 | 145 |
+| Panel (`frontend/`) | 19 | 2675 | 435 |
+| Tests de integración (`ci/run_tests.sh`) | 1 | 171 | 21 |
+| Documentación (`docs/`) | 1 | este documento | 0 |
+
+`src/` pasa de 3362 a 4630 líneas (+38 %). Casi la mitad de lo añadido son dos ficheros nuevos que se pueden dejar fuera: `stats.rs` (501) y `setup.rs` (381).
+
+### Backend por fichero
+
+| Fichero | Añadidas | Quitadas | Cambios |
+|---|---|---|---|
+| `src/stats.rs` (nuevo) | 501 | 0 | 9 |
+| `src/setup.rs` (nuevo) | 381 | 0 | 1, 2, 4, 5, 9, 10 |
+| `templates/web/index.html` (nuevo) | 156 | 0 | 11 |
+| `src/internal_endpoints/mysql_proxy.rs` | 130 | 1 | 6, 7, 9 |
+| `src/app_cx.rs` | 118 | 49 | 1, 8, 9 |
+| `src/internal_endpoints/mod.rs` | 75 | 31 | 2, 3, 5, 6, 7 |
+| `src/composite_tests.rs` (nuevo) | 62 | 0 | 10 |
+| `src/main.rs` | 46 | 55 | 1, 2, 9, 12 |
+| `src/static_service.rs` | 36 | 1 | 1, 9, 11 |
+| `src/internal_endpoints/admin/endpoints.rs` | 35 | 0 | 3 |
+| `src/config.rs` | 11 | 3 | 8 |
+| `src/internal_endpoints/console.rs` | 8 | 1 | 5 |
+| `src/new.rs` | 6 | 3 | 11 |
+| `src/lib.rs` | 3 | 0 | 1, 9, 10 |
+| `Cargo.toml` | 1 | 1 | 7 |
+
+### Backend por cambio (aproximado)
+
+Un fichero puede servir a varios cambios. Por eso el reparto es una estimación (≈), hecha a partir de las funciones que añade cada cambio.
+
+| # | Cambio | Líneas añadidas (≈) |
+|---|---|---|
+| 9 | Estadísticas de uso | 590 |
+| 1 | Modo configuración | 370 |
+| 11 | Página inicial de `web/` (156 son el HTML) | 170 |
+| 10 | Tests compuestos | 80 |
+| 3 | `Load endpoints` | 75 |
+| 4 | Explorar el servidor de BD | 70 |
+| 6 | Autenticar un usuario para los tests | 60 |
+| 7 | Contraseñas con argon2 | 60 |
+| 5 | Consola por Server-Sent Events | 45 |
+| 2 | Administrador local | 40 |
+| 12 | `--listen` y comprobación del puerto | 25 |
+| 8 | Tablas internas fuera del descubrimiento | 12 |
+
+Los cambios del primer bloque de la propuesta de orden (7, 8, 11 y 12) suman unas 270 líneas, de las que 156 son el HTML de la página inicial. El administrador local (2) son unas 40.
+
 ## Detalle
 
 ### 1. Arranque en un directorio vacío y modo configuración
